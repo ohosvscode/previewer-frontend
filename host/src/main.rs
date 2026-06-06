@@ -37,6 +37,8 @@ struct Args {
     #[arg(long, default_value = "127.0.0.1:9000")]
     bind: String,
 
+    #[arg(long, default_value = "liteWearable")]
+    device: String,
     #[arg(long, default_value = "pages/index/index")]
     url: String,
     #[arg(long, default_value = "com.example.claude")]
@@ -58,6 +60,7 @@ async fn main() -> Result<()> {
     let cfg = LaunchConfig {
         sim: args.sim,
         app: args.app,
+        device: args.device,
         bundle: args.bundle,
         url: args.url,
         width: args.width,

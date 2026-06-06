@@ -16,6 +16,7 @@ use super::launcher::{self, Endpoints, LaunchConfig};
 
 pub struct Session {
     pub endpoints: Endpoints,
+    cfg: LaunchConfig,
     frames: watch::Sender<Option<Bytes>>,
     #[allow(dead_code)] // 保活：留一个 receiver 使 watch 通道不因零订阅者而关闭
     frames_keepalive: watch::Receiver<Option<Bytes>>,
@@ -25,6 +26,19 @@ pub struct Session {
 }
 
 impl Session {
+    /// UI 连接时的握手信息：设备类型/形状/分辨率，供 UI 自适应（lite/rich 命令集不同）。
+    pub fn hello(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "hello",
+            "device": self.cfg.device,
+            "isLite": self.cfg.is_lite(),
+            "shape": self.cfg.shape,
+            "width": self.cfg.width,
+            "height": self.cfg.height,
+            "url": self.cfg.url,
+        })
+    }
+
     /// 启动会话：bind 命令通道 → spawn Simulator → accept 命令连接 → 启动帧中继。
     pub async fn start(cfg: LaunchConfig) -> Result<Arc<Self>> {
         let ep = Endpoints::allocate()?;
@@ -63,7 +77,7 @@ impl Session {
             tokio::spawn(frame_relay::run(url, tx));
         }
 
-        Ok(Arc::new(Self { endpoints: ep, frames, frames_keepalive, cmd, child }))
+        Ok(Arc::new(Self { endpoints: ep, cfg, frames, frames_keepalive, cmd, child }))
     }
 
     /// UI gateway 订阅帧流（watch：立即拿到最新帧，之后等变更）。

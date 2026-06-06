@@ -1,0 +1,24 @@
+{
+  "name": "oh-previewer",
+  "displayName": "OpenHarmony Previewer",
+  "description": "在 VSCode 中预览 OpenHarmony 应用（驱动开源 Simulator）。复用同一份 UI，经 relay shim 桥接 postMessage。",
+  "version": "0.0.1",
+  "publisher": "openharmony-previewer-frontend",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "ohPreviewer.open", "title": "OpenHarmony: 打开预览" }
+    ],
+    "configuration": {
+      "title": "OpenHarmony Previewer",
+      "properties": {
+        "ohPreviewer.hostBin": { "type": "string", "default": "", "description": "previewer-host 可执行文件路径（留空则按平台在 ../../target 下查找）" },
+        "ohPreviewer.sim": { "type": "string", "default": "", "description": "Simulator 路径（透传给 host --sim）" },
+        "ohPreviewer.app": { "type": "string", "default": "", "description": "已编译 liteWearable 应用目录（透传给 host --app）" },
+        "ohPreviewer.bind": { "type": "string", "default": "127.0.0.1:9000", "description": "host gateway 监听地址" }
+      }
+    }
+  }
+}

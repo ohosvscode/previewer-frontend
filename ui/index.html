@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Preview UI（vanilla，零构建）—— 替代 DevEco 闭源 ohpreviewer 的最小可移植实现。
+  Preview UI（vanilla，零构建）—— 替代 DevEco 闭源 ohpreviewer 的可移植实现。
   只依赖 PreviewTransport，可在任意 webview / 浏览器加载。见 ../docs/architecture.md §3/§5。
 -->
 <html lang="zh-CN">
@@ -11,12 +11,18 @@
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
-  <main class="stage">
-    <div class="device device--circle" id="device">
-      <canvas id="screen" width="466" height="466"></canvas>
+  <div class="app">
+    <header class="toolbar" id="toolbar"></header>
+    <div class="main">
+      <section class="stage">
+        <div class="device device--circle" id="device">
+          <canvas id="screen" width="466" height="466"></canvas>
+        </div>
+        <div class="status" id="status">连接中…</div>
+      </section>
+      <aside class="panel" id="panel"></aside>
     </div>
-    <div class="status" id="status">连接中…</div>
-  </main>
+  </div>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>

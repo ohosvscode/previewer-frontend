@@ -13,12 +13,20 @@ use tokio::process::{Child, Command};
 pub struct LaunchConfig {
     pub sim: PathBuf,
     pub app: PathBuf,
+    pub device: String, // "liteWearable" 等
     pub bundle: String,
     pub url: String,
     pub width: u32,
     pub height: u32,
     pub shape: String, // "circle" | "rect"
     pub sim_log: PathBuf,
+}
+
+impl LaunchConfig {
+    /// 是否轻量设备（命令集按 lite/rich 分流，见 protocol.md §3.5）。
+    pub fn is_lite(&self) -> bool {
+        matches!(self.device.as_str(), "liteWearable" | "smartVision")
+    }
 }
 
 /// Host 为本次会话分配的端点（命令通道基名/路径、WS 端口、sid）。
@@ -71,7 +79,7 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
     let child = Command::new(&cfg.sim)
         .current_dir(bin_dir)
         .args([
-            "-device", "liteWearable",
+            "-device", &cfg.device,
             "-shape", &cfg.shape,
             "-or", &w, &h,
             "-cr", &w, &h,

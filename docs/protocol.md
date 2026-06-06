@@ -113,8 +113,24 @@ Simulator \
 
 ### 3.5 命令 IDL（type + args）📖
 
-按用途分组，args 字段名/类型/范围均读自 `cli/CommandLine.cpp` 各 `*Command` 并经
-`liteWearableSettingConfig.json` 交叉验证。坐标系为 **original 分辨率**（0..GetCurrentWidth/Height）。
+⚠️ **命令集按设备类型 lite/rich 分流**（`cli/CommandLineFactory.cpp:31-66`，M2 实测确认）。
+向 liteWearable 发 rich 专属命令会回 `"Unsupported command"`。
+
+**仅 liteWearable（lite 分支）**：`Power` `Volume` `Barometer` `Location` `KeepScreenOnState`
+`WearingState` `BrightnessMode` `ChargeMode` `Brightness` `HeartRate` `StepCount`
+`DistributedCommunications` `CrownRotate`。
+
+**仅 rich（非 lite 分支）**：`BackClicked` `inspector` `inspectorDefault` `ColorMode`
+`Orientation` `ResolutionSwitch` `CurrentRouter` `ReloadRuntimePage` `FontSelect`
+`MemoryRefresh` `LoadDocument` `FastPreviewMsg` `DropFrame` `KeyPress` `LoadContent`
+`FoldStatus` `AvoidArea` `AvoidAreaChanged`。
+
+**两端通用**：`MousePress` `MouseRelease` `MouseMove` `PointEvent` `Language`
+`SupportedLanguages` `exit` `Resolution` `DeviceType`。
+
+⇒ UI 需按 Host `hello` 的 `isLite` 自适应：lite 只暴露传感器/触摸/表冠/语言；
+inspector·重载·深色等仅 rich。下表 args 字段名/类型/范围均读自 `cli/CommandLine.cpp` 各
+`*Command` 并经 `liteWearableSettingConfig.json` 交叉验证。坐标系为 **original 分辨率**。
 
 **交互注入**
 | command | type | args |

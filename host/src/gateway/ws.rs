@@ -49,6 +49,13 @@ async fn handle_ui_client(mut socket: WebSocket, session: Arc<Session>) {
     let mut frames = session.subscribe_frames();
     let mut events = session.subscribe_events();
 
+    // 握手：先告知设备类型/分辨率，UI 据此自适应（lite/rich 命令集不同）
+    if let Ok(hello) = serde_json::to_string(&session.hello()) {
+        if socket.send(Message::Text(hello.into())).await.is_err() {
+            return;
+        }
+    }
+
     // 连接即先发当前最新帧（若有），新客户端不必等下一次渲染
     let initial = frames.borrow_and_update().clone();
     if let Some(jpeg) = initial {
@@ -81,12 +88,41 @@ async fn handle_ui_client(mut socket: WebSocket, session: Arc<Session>) {
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(_) => {} // 事件通道关闭不致命，继续推帧
             },
-            // 读取客户端消息（M2 交互上行）；当前仅检测断开
+            // 读取客户端上行（M2 交互/控制）
             msg = socket.recv() => match msg {
-                Some(Ok(_)) => { /* M2: 解析控制/交互消息 → session.send_command */ }
-                _ => break,
+                Some(Ok(Message::Text(txt))) => {
+                    if let Err(e) = handle_uplink(&txt, &session).await {
+                        eprintln!("[gateway] 处理上行失败: {e}");
+                    }
+                }
+                Some(Ok(Message::Close(_))) | None => break,
+                Some(Ok(_)) => {}
+                Some(Err(_)) => break,
             },
         }
     }
     println!("[gateway] UI 客户端断开");
+}
+
+/// UI 上行消息（文本 JSON）→ 翻译成命令通道请求下发。
+///
+/// UI 约定：`{"type":"command","command":"<name>","cmdType":"set|get|action","args":{...}}`
+async fn handle_uplink(txt: &str, session: &Arc<Session>) -> anyhow::Result<()> {
+    let v: serde_json::Value = serde_json::from_str(txt)?;
+    match v.get("type").and_then(|x| x.as_str()) {
+        Some("command") => {
+            let command = v
+                .get("command")
+                .and_then(|x| x.as_str())
+                .ok_or_else(|| anyhow::anyhow!("缺 command"))?;
+            let cmd_type = v.get("cmdType").and_then(|x| x.as_str()).unwrap_or("set");
+            let args = v.get("args").cloned().unwrap_or(serde_json::json!({}));
+            let envelope = crate::core::build_command(command, cmd_type, args);
+            session.send_command(&envelope).await?;
+        }
+        other => {
+            eprintln!("[gateway] 未知上行 type: {other:?}");
+        }
+    }
+    Ok(())
 }
