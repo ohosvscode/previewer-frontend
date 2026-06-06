@@ -4,15 +4,18 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Preview UI  (ui/)   React + TS + Canvas                      │
+│  Preview UI  (ui/)   React + TS + Canvas   ← 纯 Web，可移植    │
 │  ScreenCanvas · DeviceFrame · InputLayer · ControlPanel       │
 │  InspectorPanel · Toolbar                                     │
+│  ───────────────── PreviewTransport（移植接缝）─────────────── │
+│  WebSocketTransport | VsCodeTransport | PostMessageTransport  │
 └───────────────▲───────────────────────┬─────────────────────┘
-                │  统一 WS（帧 + 事件）   │  统一 WS（交互 + 控制）
+       帧+事件   │   WS / postMessage     │  交互+控制（同一传输）
                 │                        ▼
 ┌───────────────┴─────────────────────────────────────────────┐
-│  Preview Host  (host/)   Node.js + TS                         │
-│  UIGateway · CommandBridge · FrameRelay · Launcher            │
+│  Preview Host  (host/)   Node.js + TS   ← 需 Node 运行时       │
+│  gateway:  WsGateway | EmbedGateway   （可插拔，配对 Transport）│
+│  core:     Launcher · CommandBridge · FrameRelay · Session    │
 └───────┬───────────────────────────────────▲─────────────────┘
         │ spawn + CLI args                   │
         │                                    │
@@ -31,7 +34,8 @@
 
 ## 2. Preview Host（host/）
 
-替代闭源 `index.js`。职责：进程生命周期 + 协议网关。单进程，四个模块。
+替代闭源 `index.js`。职责：进程生命周期 + 协议网关。分**运行时无关的 core** 与
+**可插拔 gateway**（见 §5.3）。core 四个模块如下；gateway 见 §5.3。
 
 ### 2.1 Launcher
 - 分配空闲 WS 端口与唯一 socket/pipe 名（及 `sid`）。
@@ -49,15 +53,22 @@
 - 解析 40 字节帧头（magic 校验、宽高、protocolVersion、脏矩形），剥离负载。
 - 输出 `{ originalW, originalH, version, rect, payload }` 事件。
 
-### 2.4 UIGateway（对 UI 的统一出口）
-- 对 UI 暴露**单一** WebSocket 端点（+ 静态文件服务，托管 ui 构建产物）。
-- 下行：把 FrameRelay 的帧（重打包为 jpeg blob + 元数据）和 CommandBridge 的上报转发给 UI。
-- 上行：把 UI 的交互/控制消息翻译成命令通道 JSON，经 CommandBridge 下发。
-- UI 因此完全不感知底层双通道与字节序细节，便于多设备形态复用。
+### 2.4 Session（会话编排）
+- 把 Launcher + CommandBridge + FrameRelay 组装成一次预览会话，是 **core 对外的唯一出口**。
+- 对外暴露运行时无关接口：`onFrame(cb)` / `onEvent(cb)` / `postControl(msg)` / `dispose()`。
+- 下行：把 FrameRelay 的帧（重打包为 jpeg bytes + 元数据）和 CommandBridge 的上报，统一发给订阅者。
+- 上行：把控制消息翻译成命令通道 JSON，经 CommandBridge 下发。
+- **不假设 UI 如何连接**——具体由 gateway（§5.3）接到 WebSocket 或 postMessage 上。
+- UI 因此完全不感知底层双通道、字节序与宿主差异，既便于多设备形态复用，也便于跨 webview 移植。
 
 ## 3. Preview UI（ui/）
 
-替代闭源 `ohpreviewer`。React + TS。六个模块。
+替代闭源 `ohpreviewer`。React + TS。**纯 Web 产物，可在任意 webview 移植**（见 §5）。
+所有模块只依赖 `PreviewTransport` 接口，不直接接触 socket / 宿主 API。六个功能模块 + 一个传输层。
+
+### 3.0 Transport（移植接缝，§5.2）
+- `PreviewTransport` 接口 + 三个实现（`WebSocketTransport` / `VsCodeTransport` / `PostMessageTransport`）。
+- 启动时 `detect()` 按宿主自动选择（VSCode 注入 `acquireVsCodeApi` → 选 postMessage，否则默认 WS）。
 
 ### 3.1 ScreenCanvas
 - 订阅 Host 帧流。JPEG 帧用 `createImageBitmap(blob)` → `ctx.drawImage`。
@@ -101,11 +112,70 @@
   → 用户看到响应
 ```
 
-## 5. 进程与部署形态
+## 5. 嵌入模型与可移植性
 
-- **开发**：`host` 起本地服务（含静态托管 `ui` 产物），浏览器打开即用。
-- **IDE 集成（可选后续）**：`ui` 产物嵌入 WebView，`host` 作为后台进程，与本设计无冲突。
+设计目标：**UI 是一份纯静态 Web 产物，只要有 webview 就能移植**——VSCode webview、
+独立 webview（Electron/Tauri/pywebview）、或普通浏览器，三者复用同一份 UI。
+
+### 5.1 哪部分可移植，哪部分不可移植
+
+- **可移植 = UI**：纯浏览器技术（React + Canvas + WebSocket/postMessage），无 Node/原生依赖。
+- **不可移植 = Host**：必须 spawn `Simulator` 进程并说原生 domain socket / 命名管道，
+  只能跑在有 Node 运行时的宿主里（独立进程 / VSCode 扩展宿主 / Electron 主进程 / Tauri sidecar）。
+
+⇒ 移植工作只发生在「UI 用什么方式够到 Host」这一层。把它抽象成**可插拔 Transport** 即可。
+
+### 5.2 UI 侧：Transport 抽象（移植的唯一接缝）
+
+UI 不直接 `new WebSocket(...)`，而是面向一个接口编程：
+
+```ts
+interface PreviewTransport {
+  connect(): Promise<void>;
+  send(msg: ControlMessage): void;        // 上行：交互/控制 → Host
+  onFrame(cb: (f: FrameMessage) => void): void;  // 下行：画面帧
+  onEvent(cb: (e: EventMessage) => void): void;  // 下行：上报（路由变化/inspector 等）
+  close(): void;
+}
+```
+
+具体实现按宿主选择（启动时 `detect()` 自动判定）：
+
+| Transport | 适用宿主 | 机制 |
+|-----------|----------|------|
+| `WebSocketTransport` | 浏览器、独立 webview | `ws://127.0.0.1:<port>`，默认/通用方案 |
+| `VsCodeTransport` | VSCode webview | `acquireVsCodeApi().postMessage` ↔ 扩展宿主（绕过 CSP/沙箱，remote/web 也可用） |
+| `PostMessageTransport` | 通用 iframe 嵌入 | `window.postMessage` |
+
+UI 其余模块（ScreenCanvas / InputLayer / …）只依赖 `PreviewTransport`，**对宿主零感知**。
+
+### 5.3 Host 侧：core / gateway 拆分
+
+Host 拆成「运行时无关的核心」+「面向 UI 的可插拔网关」，与 Transport 一一对应：
+
+- **host-core**（运行时无关）：`Launcher` + `CommandBridge` + `FrameRelay` + `Session`。
+  只产出/接收抽象的帧与控制消息，不关心 UI 怎么连。
+- **gateway**（可插拔）：
+  - `WsGateway` —— 起本地 WebSocket server + 静态托管 UI 产物。配 `WebSocketTransport`。
+  - `EmbedGateway` —— 进程内回调接口（`onFrame`/`postControl`），由宿主把消息接到自己的
+    IPC 上。VSCode 扩展用它把帧/事件 `postMessage` 给 webview，配 `VsCodeTransport`。
+
+### 5.4 嵌入矩阵
+
+| 宿主 | UI 加载方式 | Transport | Host 运行位置 | Gateway |
+|------|------------|-----------|---------------|---------|
+| 浏览器 | `WsGateway` 静态托管 | WebSocket | 独立 Node 进程 | `WsGateway` |
+| 独立 webview (Electron/Tauri/pywebview) | 本地文件 / 内置 server | WebSocket | 进程内 / sidecar | `WsGateway` |
+| VSCode | `Webview.html` + asWebviewUri | postMessage | 扩展宿主 (Node) | `EmbedGateway` |
+
+> 共识：**WebSocket 是默认与通用路径**；只有 VSCode 这类沙箱宿主才需要 postMessage 桥。
+> 三种宿主复用同一 UI 产物，差异收敛在「选哪个 Transport / 哪个 Gateway」。
+
+### 5.5 通用约束
+
 - Host 与 Simulator 全程 `127.0.0.1` 本地通信；socket/pipe 名与 `sid` 每次随机，避免多实例冲突。
+- Host↔UI 的内部消息格式由本项目自定义（见 protocol §3.2 风格），**不照搬** Simulator 的字节协议；
+  二进制帧建议封成 `{meta-json}` + `jpeg bytes`，文本控制用 JSON，便于跨 Transport 一致序列化。
 
 ## 6. 跨平台注意
 

@@ -23,16 +23,19 @@
 
 ---
 
-## M1 — 只读预览
+## M1 — 只读预览（确立移植接缝）
 
-目标：浏览器里看到实时画面。
+目标：浏览器里看到实时画面，并**一次性把 Transport/gateway 接缝立起来**。
 
 任务：
-- `host/`：Launcher + FrameRelay + 最小 UIGateway（单 WS + 静态托管）。
-- `ui/`：ScreenCanvas（JPEG 解码 + drawImage）+ DeviceFrame（liteWearable 圆/方屏）。
+- `host/core`：Launcher + FrameRelay + Session。
+- `host/gateways`：`WsGateway`（单 WS + 静态托管）。
+- `ui/transport`：`PreviewTransport` 接口 + `WebSocketTransport` + `detect()`。
+- `ui/components`：ScreenCanvas（JPEG 解码 + drawImage）+ DeviceFrame（liteWearable 圆/方屏）。
 - 帧节奏处理：按 protocolVersion 分支、忽略 region 优化（先整屏覆盖）。
 
-**验收**：`host` 启动后浏览器打开即见实时刷新的应用画面（圆屏裁剪正确）。
+**验收**：`host` 启动后浏览器打开即见实时刷新的应用画面（圆屏裁剪正确）；
+UI 业务模块只依赖 `PreviewTransport`，为后续换宿主预留接缝。
 
 ---
 
@@ -78,12 +81,28 @@
 
 ---
 
+## M5 — VSCode 嵌入（验证可移植性）
+
+目标：同一份 UI 产物在 VSCode webview 中跑通，证明移植接缝有效。
+
+任务：
+- `host/gateways`：`EmbedGateway`（进程内回调接口）。
+- `host/integrations/vscode`：薄扩展——在扩展宿主用 `core + EmbedGateway` 起会话，
+  通过 `webview.postMessage` / `onDidReceiveMessage` 桥接。
+- `ui/transport`：`VsCodeTransport`（`acquireVsCodeApi`），`detect()` 自动选择。
+- Webview HTML：用 `asWebviewUri` 加载 UI 产物，配好 CSP。
+
+**验收**：在 VSCode 里打开预览面板即见实时画面并可交互，**UI/core 代码相对 M1 零改动**
+（仅新增 Transport 实现 + gateway + 扩展壳）。
+
+---
+
 ## 后续（Backlog）
 
 - rich 形态（phone/tablet/tv/car，驱动 `Previewer` 二进制）。
 - 折叠屏 `FoldStatus`/`-foldable`、多分辨率 `ResolutionSwitch`。
 - Fast Preview 热重载（`FastPreviewMsg`）。
-- IDE / 编辑器插件集成（WebView 嵌入）。
+- 其他独立 webview 宿主：Electron / Tauri sidecar / pywebview 打包。
 - 设备外观皮肤系统（多表盘 / 多设备外框资源）。
 
 ---
@@ -92,5 +111,8 @@
 
 ```
 M0 协议探针 ──► M1 只读预览 ──► M2 可交互 ──► M3 设备面板 ──► M4 工具&稳定
-   (阻塞全部)      (Host+UI骨架)   (命令通道)     (命令扩展)      (体验&健壮)
+   (阻塞全部)   (接缝+骨架)      (命令通道)     (命令扩展)      (体验&健壮)
+                    │
+                    └────────────────────────────────► M5 VSCode 嵌入
+                       (复用 Transport 接缝，验证可移植性)
 ```
