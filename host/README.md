@@ -29,4 +29,13 @@ host/
 
 ## 状态
 
-规划阶段，尚无代码。第一步见 [`../docs/roadmap.md`](../docs/roadmap.md) 的 **M0 协议探针**。
+**M0 协议探针已完成** ✅。`src/bin/m0_probe.rs` 实跑端到端通过（抓取并解码出真实首帧）。
+
+```bash
+cd host
+cargo run --bin m0-probe          # 默认指向 SDK Simulator + 测试手表应用
+# 成功后：/tmp/ohprev_frame.jpg 为渲染出的 liteWearable 首屏
+cargo run --bin m0-probe -- --help  # 可覆盖 --sim/--app/--port 等
+```
+
+core/gateway 各模块（上表）将在 M1 落地。详见 [`../docs/roadmap.md`](../docs/roadmap.md)。

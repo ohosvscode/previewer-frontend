@@ -2,24 +2,27 @@
 
 原则：**先打通协议，再做体验**。每个里程碑都可独立验收、可演示。
 
-## M0 — 协议探针（最高优先级）
+## M0 — 协议探针 ✅ 已完成（2026-06-06）
 
 目标：用最小代码验证 [`protocol.md`](protocol.md) 的全部假设，消除落地风险。
 
-任务：
-1. 读死阻塞点（见 protocol §5）：
-   - `WebSocketServer::CheckSid` 的 sid 匹配方式与握手位置。
-   - 帧头 region 字段逐字节偏移。
-   - `version` 字段要求的正则。
-2. 写一个最小探针（Rust；如需更快验证可先用任意脚本，再用 Rust 固化）：
-   - 建命令通道 server（`interprocess` local_socket / Unix domain socket）。
-   - spawn `Simulator`，传最小 liteWearable 参数集。
-   - 收到 WS 启动信号后连图像通道（带 sid）。
-   - 解析帧头、校验 magic、把首帧负载 dump 成 `.jpg` 到磁盘。
+产出：`host/src/bin/m0_probe.rs`（Rust）。实跑端到端通过——从开源 Simulator 抓取并解码出
+真实首帧（liteWearable 466×466 圆屏，渲染出测试应用的「您好 世界」）。
 
-**验收**：磁盘上出现一张正确的应用首屏 JPEG ⇒ 两条通道 + 帧格式 + sid 全部验证通过。
+**已验证/读死**：
+- 命令通道方向（Host=server）、路径陷阱（`-s` 是基名 → `/tmp/<base>_commandPipe`）。
+- 启动参数（`-or/-cr` 各两值、`-url` 必填、cwd 必须是 bin 目录否则字体失败、`-sid` hex）。
+- sid 握手（WS URL 末段路径，空 sid 不校验）。
+- 启动信号 JSON、帧头逐字节（**大端**，对抗复核一致）、lite 恒整屏 JPEG。
+- 完整命令 IDL（见 protocol §3.5）。
 
-风险/产出：本阶段会把所有「待核对」项变成「已读死」，并更新 protocol.md。
+**测试资产**：
+- Simulator：`~/Library/OpenHarmony/Sdk/23/previewer/liteWearable/bin/Simulator`
+- 测试手表应用（已编译 lite 产物）：
+  `~/DevEcoStudioProjects/claude/entry/build/default/intermediates/loader_out_lite/default/js/MainAbility`
+- 探针默认参数已指向上述路径，`cargo run --bin m0-probe` 即可复现。
+
+**验收**：✅ 磁盘出现正确的应用首屏 JPEG（`/tmp/ohprev_frame.jpg`）。
 
 ---
 
