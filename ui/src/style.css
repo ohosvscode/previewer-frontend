@@ -101,6 +101,7 @@ input.ctl-input[type="range"] { width: 120px; }
 input.ctl-input[type="number"] { width: 90px; background: #1c1d20; color: var(--text); border: 1px solid #3c3f46; border-radius: 4px; padding: 3px 5px; }
 select.ctl-input { background: #1c1d20; color: var(--text); border: 1px solid #3c3f46; border-radius: 4px; padding: 3px; }
 
+.inspector-note { color: var(--muted); font-size: 11px; margin: 4px 0 6px; }
 .inspector-tree {
   background: #16171a;
   border: 1px solid #2c2e33;

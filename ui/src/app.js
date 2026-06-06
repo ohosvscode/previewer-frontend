@@ -35,10 +35,13 @@ function buildUI(hello) {
 
   deviceEl.className = "device " + (hello.shape === "rect" ? "device--rect" : "device--circle");
   if (hello.width && hello.height) {
-    canvas.width = hello.width;
+    canvas.width = hello.width;   // 原始分辨率（渲染清晰 + 坐标映射正确）
     canvas.height = hello.height;
-    canvas.style.width = hello.width + "px";
-    canvas.style.height = hello.height + "px";
+    // 显示尺寸按最大高度缩放适配（手机 1080x2340 不能 1:1 显示）
+    const MAX_H = 620;
+    const scale = Math.min(1, MAX_H / hello.height);
+    canvas.style.width = Math.round(hello.width * scale) + "px";
+    canvas.style.height = Math.round(hello.height * scale) + "px";
   }
 
   panelEl.innerHTML = "";

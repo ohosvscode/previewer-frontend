@@ -13,13 +13,17 @@ use tokio::process::{Child, Command};
 pub struct LaunchConfig {
     pub sim: PathBuf,
     pub app: PathBuf,
-    pub device: String, // "liteWearable" 等
+    pub device: String, // "liteWearable" | "phone" | ...
     pub bundle: String,
     pub url: String,
     pub width: u32,
     pub height: u32,
     pub shape: String, // "circle" | "rect"
     pub sim_log: PathBuf,
+    // rich（Stage 模型）专属，可选
+    pub project_model: String,           // "FA" | "Stage"
+    pub app_resource_path: Option<PathBuf>, // -arp
+    pub pages: Option<PathBuf>,          // -pages（router 配置文件）
 }
 
 impl LaunchConfig {
@@ -82,20 +86,37 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
     let log_err = log.try_clone()?;
     let (w, h) = (cfg.width.to_string(), cfg.height.to_string());
 
-    let child = Command::new(&cfg.sim)
-        .current_dir(bin_dir)
-        .args([
-            "-device", &cfg.device,
-            "-shape", &cfg.shape,
-            "-or", &w, &h,
-            "-cr", &w, &h,
-            "-j", app_str,
-            "-n", &cfg.bundle,
-            "-url", &cfg.url,
-            "-s", &ep.base,
-            "-lws", &ep.ws_port.to_string(),
-            "-sid", &ep.sid,
-        ])
+    let port = ep.ws_port.to_string();
+    let mut cmd = Command::new(&cfg.sim);
+    cmd.current_dir(bin_dir).args([
+        "-device", &cfg.device,
+        "-shape", &cfg.shape,
+        "-or", &w, &h,
+        "-cr", &w, &h,
+        "-j", app_str,
+        "-n", &cfg.bundle,
+        "-url", &cfg.url,
+        "-s", &ep.base,
+        "-lws", &port,
+        "-sid", &ep.sid,
+    ]);
+
+    // rich（Stage/FA 非 lite）专属参数
+    if !cfg.is_lite() {
+        cmd.args(["-pm", &cfg.project_model, "-projectID", "ohprev"]);
+        if let Some(arp) = &cfg.app_resource_path {
+            if let Some(s) = arp.to_str() {
+                cmd.args(["-arp", s]);
+            }
+        }
+        if let Some(pages) = &cfg.pages {
+            if let Some(s) = pages.to_str() {
+                cmd.args(["-pages", s]);
+            }
+        }
+    }
+
+    let child = cmd
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(log_err))
         .kill_on_drop(true)

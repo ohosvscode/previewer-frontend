@@ -51,6 +51,16 @@ struct Args {
     shape: String,
     #[arg(long, default_value = "/tmp/ohprev_sim.log")]
     sim_log: PathBuf,
+
+    // rich（Stage 模型）专属
+    #[arg(long, default_value = "FA")]
+    project_model: String,
+    /// -arp 应用资源目录（rich Stage 需要）
+    #[arg(long)]
+    arp: Option<PathBuf>,
+    /// -pages router 配置文件路径（rich Stage 需要）
+    #[arg(long)]
+    pages: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -67,6 +77,9 @@ async fn main() -> Result<()> {
         height: args.height,
         shape: args.shape,
         sim_log: args.sim_log,
+        project_model: args.project_model,
+        app_resource_path: args.arp,
+        pages: args.pages,
     };
 
     let session = Session::start(cfg).await?;

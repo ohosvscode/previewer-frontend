@@ -178,7 +178,8 @@ inspector·重载·深色等仅 rich。下表 args 字段名/类型/范围均读
 **调试/国际化/生命周期**
 | command | type | 回包 |
 |---------|------|------|
-| `inspector` / `inspectorDefault` | action | `{result: <组件树 JSON 字符串>}`（空树 `{"children":"empty json tree"}`） |
+| `inspector` | action | `{result: <实时组件树 JSON>}`。⚠️ rich 实测：standalone（无 ArkTS 调试器连 `-p` 端口）返回空串；`-d` 调试模式下若无调试器连接 `GetUIContent()` 为空会崩溃。实时树需 DevEco 调试基建。 |
+| `inspectorDefault` | action | `{result: <默认组件目录 JSON>}`。✅ rich standalone 即返回完整组件目录（`version/deviceType/defaultValue{...}`，~63KB）。前端取 `inspector` 为空时回退此命令。 |
 | `SupportedLanguages` | get | `{result:{SupportedLanguages:string[]}}` |
 | `FontSelect` | set | `{FontSelect:bool}` |
 | `DistributedCommunications` | action | `{DeviceId,bundleName,abilityName,message:string 非空}` |
