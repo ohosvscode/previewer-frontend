@@ -70,6 +70,14 @@ async fn main() -> Result<()> {
     };
 
     let session = Session::start(cfg).await?;
-    gateway::ws::serve(session, args.ui, &args.bind).await?;
+    let mut shutdown = session.subscribe_shutdown();
+
+    // Simulator 退出 → Host 随之优雅关闭（单会话工具；自动重启见 roadmap backlog）
+    tokio::select! {
+        r = gateway::ws::serve(session.clone(), args.ui, &args.bind) => r?,
+        _ = shutdown.changed() => {
+            eprintln!("[host] Simulator 已退出，Host 关闭。");
+        }
+    }
     Ok(())
 }

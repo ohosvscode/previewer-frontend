@@ -44,41 +44,67 @@ pub fn parse_header(buf: &[u8]) -> Result<FrameMeta> {
     })
 }
 
+/// 单帧上限（与后端 MAX_PAYLOAD_SIZE 同量级，防御异常大帧）。
+const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+
 /// 连接 Simulator 图像通道并持续中继。每帧把 JPEG 负载写入 frame_tx（watch，保留最新帧）。
-/// 带重连：连接失败/断开后退避重试。
-pub async fn run(ws_url: String, frame_tx: watch::Sender<Option<Bytes>>) {
+/// 带重连与退避；收到 shutdown 信号（Simulator 退出/会话结束）即停止，避免对死端口空转重连。
+pub async fn run(
+    ws_url: String,
+    frame_tx: watch::Sender<Option<Bytes>>,
+    mut shutdown: watch::Receiver<bool>,
+) {
     let mut backoff = Duration::from_millis(200);
     loop {
-        match relay_once(&ws_url, &frame_tx).await {
-            Ok(()) => {
-                // 流正常结束（Simulator 关闭），短暂等待后重试。
-                backoff = Duration::from_millis(200);
-            }
+        if *shutdown.borrow() {
+            return;
+        }
+        let result = tokio::select! {
+            r = relay_once(&ws_url, &frame_tx) => r,
+            _ = shutdown.changed() => return,
+        };
+        match result {
+            // 本次连接收到过帧 → 视为有进展，断开后较快重连
+            Ok(true) => backoff = Duration::from_millis(200),
+            // 连上即关闭/未收到帧 → 退避增长，避免高频空转（finding #10）
+            Ok(false) => backoff = (backoff * 2).min(Duration::from_secs(3)),
             Err(e) => {
                 eprintln!("[relay] {e}（{}ms 后重连 {ws_url}）", backoff.as_millis());
+                backoff = (backoff * 2).min(Duration::from_secs(3));
             }
         }
-        sleep(backoff).await;
-        backoff = (backoff * 2).min(Duration::from_secs(3));
+        tokio::select! {
+            _ = sleep(backoff) => {}
+            _ = shutdown.changed() => return,
+        }
     }
 }
 
-async fn relay_once(ws_url: &str, frame_tx: &watch::Sender<Option<Bytes>>) -> Result<()> {
+/// 返回是否“有进展”（至少收到过一帧）。
+async fn relay_once(ws_url: &str, frame_tx: &watch::Sender<Option<Bytes>>) -> Result<bool> {
     let (ws, _resp) = tokio_tungstenite::connect_async(ws_url).await?;
     println!("[relay] 已连 Simulator 图像通道 {ws_url}");
     let (_write, mut read) = ws.split();
+    let mut got = false;
     while let Some(msg) = read.next().await {
         match msg? {
-            Message::Binary(data) => match parse_header(&data) {
-                Ok(_meta) => {
-                    let jpeg = Bytes::copy_from_slice(&data[HEAD_SIZE..]);
-                    frame_tx.send_replace(Some(jpeg)); // 保留最新帧，新 UI 客户端立即可得
+            Message::Binary(data) => {
+                if data.len() > MAX_FRAME_BYTES {
+                    eprintln!("[relay] 丢弃超大帧 {} 字节", data.len());
+                    continue;
                 }
-                Err(e) => eprintln!("[relay] 丢弃异常帧: {e}"),
-            },
-            Message::Close(_) => return Ok(()),
+                match parse_header(&data) {
+                    Ok(_meta) => {
+                        let jpeg = Bytes::copy_from_slice(&data[HEAD_SIZE..]);
+                        frame_tx.send_replace(Some(jpeg)); // 保留最新帧，新 UI 客户端立即可得
+                        got = true;
+                    }
+                    Err(e) => eprintln!("[relay] 丢弃异常帧: {e}"),
+                }
+            }
+            Message::Close(_) => break,
             _ => {}
         }
     }
-    Ok(())
+    Ok(got)
 }

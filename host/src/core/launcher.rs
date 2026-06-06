@@ -48,7 +48,8 @@ impl Endpoints {
             l.local_addr()?.port()
         };
         let base = format!("ohprev{pid}{ws_port}");
-        let sid = format!("{:x}{:x}", pid, ws_port);
+        // 固定宽度拼接，避免 pid/port 边界歧义造成跨会话碰撞（finding #26）；保持 [a-fA-F0-9]
+        let sid = format!("{:08x}{:08x}", pid, ws_port);
         let cmd_pipe = format!("/tmp/{base}_commandPipe");
         Ok(Self { base, cmd_pipe, ws_port, sid })
     }
@@ -71,6 +72,11 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
         .parent()
         .ok_or_else(|| anyhow!("无法取 Simulator 所在目录"))?;
 
+    let app_str = cfg
+        .app
+        .to_str()
+        .ok_or_else(|| anyhow!("应用目录路径非 UTF-8: {}", cfg.app.display()))?;
+
     let log = std::fs::File::create(&cfg.sim_log)
         .with_context(|| format!("创建日志失败: {}", cfg.sim_log.display()))?;
     let log_err = log.try_clone()?;
@@ -83,7 +89,7 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
             "-shape", &cfg.shape,
             "-or", &w, &h,
             "-cr", &w, &h,
-            "-j", cfg.app.to_str().unwrap(),
+            "-j", app_str,
             "-n", &cfg.bundle,
             "-url", &cfg.url,
             "-s", &ep.base,

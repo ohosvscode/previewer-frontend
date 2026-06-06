@@ -82,9 +82,12 @@ export class ControlPanel {
     row.innerHTML = `<span class="ctl-name">定位 Location</span>`;
     const lat = Object.assign(document.createElement("input"), { type: "number", value: "39.9", step: "0.0001", className: "ctl-input" });
     const lon = Object.assign(document.createElement("input"), { type: "number", value: "116.4", step: "0.0001", className: "ctl-input" });
+    // 后端要求 string 且匹配 ^([\-]*[0-9]{1,}[\.][0-9]*)$（须含小数点、无科学计数法）
     const send = () => {
-      const s = (n) => (String(n).includes(".") ? String(n) : String(n) + ".0");
-      this._set("Location", { latitude: s(lat.value), longitude: s(lon.value) });
+      const fmt = (v) => { const f = Number.parseFloat(v); return Number.isFinite(f) ? f.toFixed(6) : null; };
+      const la = fmt(lat.value), lo = fmt(lon.value);
+      if (la === null || lo === null) return;
+      this._set("Location", { latitude: la, longitude: lo });
     };
     lat.addEventListener("change", send);
     lon.addEventListener("change", send);

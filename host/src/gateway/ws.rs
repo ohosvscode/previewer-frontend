@@ -25,6 +25,14 @@ pub async fn serve(session: Arc<Session>, ui_dir: PathBuf, bind_addr: &str) -> R
     let listener = tokio::net::TcpListener::bind(bind_addr)
         .await
         .with_context(|| format!("bind UI gateway 失败: {bind_addr}"))?;
+    // 安全提示：UI gateway 无鉴权，非回环地址会把预览与命令上行暴露给网络（finding #21）
+    if let Ok(addr) = listener.local_addr() {
+        if !addr.ip().is_loopback() {
+            eprintln!(
+                "[gateway] ⚠️ 警告：绑定到非回环地址 {addr}，UI 无鉴权，任何可达此地址的客户端都能预览并注入命令。建议仅用 127.0.0.1。"
+            );
+        }
+    }
     println!(
         "[gateway] UI 服务: http://{}  （静态目录 {}）",
         bind_addr,
@@ -48,6 +56,7 @@ async fn handle_ui_client(mut socket: WebSocket, session: Arc<Session>) {
     println!("[gateway] UI 客户端已连接");
     let mut frames = session.subscribe_frames();
     let mut events = session.subscribe_events();
+    let mut shutdown = session.subscribe_shutdown();
 
     // 握手：先告知设备类型/分辨率，UI 据此自适应（lite/rich 命令集不同）
     if let Ok(hello) = serde_json::to_string(&session.hello()) {
@@ -98,6 +107,17 @@ async fn handle_ui_client(mut socket: WebSocket, session: Arc<Session>) {
                 Some(Ok(Message::Close(_))) | None => break,
                 Some(Ok(_)) => {}
                 Some(Err(_)) => break,
+            },
+            // Simulator 退出 → 通知 UI 并关闭（避免冻屏无提示，finding #2）
+            r = shutdown.changed() => {
+                if r.is_err() || *shutdown.borrow() {
+                    let _ = socket
+                        .send(Message::Text(
+                            serde_json::json!({"type":"simulatorExited"}).to_string().into(),
+                        ))
+                        .await;
+                    break;
+                }
             },
         }
     }

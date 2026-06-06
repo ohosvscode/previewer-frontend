@@ -38,6 +38,7 @@ impl CommandBridge {
         });
 
         // 读任务：NUL 分隔，逐条解析为 JSON 并广播。
+        const MAX_ACC: usize = 4 * 1024 * 1024; // 单条消息上限，防内存 DoS（finding #19）
         tokio::spawn(async move {
             let mut acc: Vec<u8> = Vec::new();
             let mut chunk = [0u8; 8192];
@@ -46,6 +47,10 @@ impl CommandBridge {
                     Ok(0) => break,
                     Ok(n) => {
                         acc.extend_from_slice(&chunk[..n]);
+                        if acc.len() > MAX_ACC && !acc.contains(&0) {
+                            eprintln!("[cmd] 累积消息超 {MAX_ACC} 字节仍无终止符，断开");
+                            break;
+                        }
                         while let Some(pos) = acc.iter().position(|&b| b == 0) {
                             let msg: Vec<u8> = acc.drain(..=pos).collect();
                             let text = String::from_utf8_lossy(&msg[..msg.len() - 1]);

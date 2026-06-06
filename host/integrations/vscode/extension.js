@@ -21,7 +21,6 @@ function resolveHostBin(context) {
   const cfg = vscode.workspace.getConfiguration("ohPreviewer");
   const explicit = cfg.get("hostBin");
   if (explicit) return explicit;
-  // 约定：扩展位于 host/integrations/vscode/，二进制在 host/target/{release,debug}/
   const hostRoot = path.resolve(context.extensionPath, "..", "..");
   const exe = process.platform === "win32" ? "previewer-host.exe" : "previewer-host";
   for (const prof of ["release", "debug"]) {
@@ -51,8 +50,10 @@ async function openPreview(context) {
   if (cfg.get("sim")) args.push("--sim", cfg.get("sim"));
   if (cfg.get("app")) args.push("--app", cfg.get("app"));
   const host = cp.spawn(hostBin, args, { stdio: "pipe" });
-  host.stdout.on("data", (d) => console.log("[host]", d.toString()));
-  host.stderr.on("data", (d) => console.error("[host]", d.toString()));
+  const onOut = (d) => console.log("[host]", d.toString());
+  host.stdout.on("data", onOut);
+  host.stderr.on("data", onOut);
+  host.on("error", (e) => vscode.window.showErrorMessage(`previewer-host 启动失败: ${e.message}`)); // finding #25
 
   // 2. webview
   const uiRoot = vscode.Uri.file(path.resolve(context.extensionPath, "..", "..", "..", "ui"));
@@ -63,22 +64,28 @@ async function openPreview(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [uiRoot] }
   );
   panel.webview.html = renderHtml(panel.webview, uiRoot);
+  host.on("exit", () => panel.webview.postMessage({ channel: "state", state: "closed" })); // finding #25
 
-  // 3. relay: WS client ↔ webview postMessage
+  // 3. relay：WS client ↔ webview postMessage
   const WS = getWebSocketCtor();
   if (!WS) {
     vscode.window.showErrorMessage("缺少 WebSocket（需 VSCode 内置 Node 22+ 或在扩展内打包 'ws'）");
     return;
   }
   const url = `ws://${bind}/ws`;
-  let ws;
+  let ws = null;
+  let tries = 0;
+  let disposed = false;
+
+  // connect() 是 handler 的唯一来源；自行决定“重试 vs 报错”（finding #23）
   const connect = () => {
-    ws = new WS(url);
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => panel.webview.postMessage({ channel: "state", state: "open" });
-    ws.onclose = () => panel.webview.postMessage({ channel: "state", state: "closed" });
-    ws.onerror = () => panel.webview.postMessage({ channel: "state", state: "error" });
-    ws.onmessage = (ev) => {
+    if (disposed) return;
+    if (ws) { try { ws.onclose = null; ws.close(); } catch {} ws = null; }
+    const sock = new WS(url);
+    sock.binaryType = "arraybuffer";
+    ws = sock;
+    sock.onopen = () => { tries = 0; panel.webview.postMessage({ channel: "state", state: "open" }); };
+    sock.onmessage = (ev) => {
       if (typeof ev.data === "string") {
         let payload; try { payload = JSON.parse(ev.data); } catch { return; }
         panel.webview.postMessage({ channel: "event", payload });
@@ -87,29 +94,38 @@ async function openPreview(context) {
         panel.webview.postMessage({ channel: "frame", bytes });
       }
     };
-  };
-
-  // 等 host gateway 起来再连（带重试）
-  let tries = 0;
-  const tryConnect = () => {
-    connect();
-    ws.onerror = () => {
-      if (++tries < 30) setTimeout(tryConnect, 300);
+    const retry = () => {
+      if (disposed || sock !== ws) return;
+      if (++tries < 40) setTimeout(connect, Math.min(300 * tries, 3000));
       else panel.webview.postMessage({ channel: "state", state: "error" });
     };
+    sock.onerror = retry;
+    sock.onclose = () => { panel.webview.postMessage({ channel: "state", state: "closed" }); retry(); };
   };
-  setTimeout(tryConnect, 400);
 
-  // webview → host
+  // webview → host：仅在 webview 'ready' 后才连 WS，避免帧/hello 抢跑（finding #1）
   panel.webview.onDidReceiveMessage((m) => {
     if (!m) return;
-    if (m.channel === "command" && ws && ws.readyState === 1) {
-      ws.send(JSON.stringify(m.msg));
+    switch (m.channel) {
+      case "ready":
+        if (!ws) connect();
+        break;
+      case "reconnect": // finding #6：UI ⟲ 重连
+        tries = 0;
+        connect();
+        break;
+      case "command":
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify(m.msg));
+        break;
+      case "close": // finding #24
+        try { ws && ws.close(); } catch {}
+        break;
     }
   });
 
   panel.onDidDispose(() => {
-    try { ws && ws.close(); } catch {}
+    disposed = true;
+    try { ws && (ws.onclose = null, ws.close()); } catch {}
     try { host.kill(); } catch {}
   });
 }
