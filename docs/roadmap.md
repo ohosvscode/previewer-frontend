@@ -11,8 +11,8 @@
    - `WebSocketServer::CheckSid` 的 sid 匹配方式与握手位置。
    - 帧头 region 字段逐字节偏移。
    - `version` 字段要求的正则。
-2. 写一个 ~100 行脚本（Node/TS）：
-   - 建命令通道 server（Unix domain socket）。
+2. 写一个最小探针（Rust；如需更快验证可先用任意脚本，再用 Rust 固化）：
+   - 建命令通道 server（`interprocess` local_socket / Unix domain socket）。
    - spawn `Simulator`，传最小 liteWearable 参数集。
    - 收到 WS 启动信号后连图像通道（带 sid）。
    - 解析帧头、校验 magic、把首帧负载 dump 成 `.jpg` 到磁盘。
@@ -28,8 +28,8 @@
 目标：浏览器里看到实时画面，并**一次性把 Transport/gateway 接缝立起来**。
 
 任务：
-- `host/core`：Launcher + FrameRelay + Session。
-- `host/gateways`：`WsGateway`（单 WS + 静态托管）。
+- `host`（Rust）：core（Launcher + FrameRelay + Session）+ `WsGateway`（单 WS + 静态托管），
+  产出单一二进制 `previewer-host`。
 - `ui/transport`：`PreviewTransport` 接口 + `WebSocketTransport` + `detect()`。
 - `ui/components`：ScreenCanvas（JPEG 解码 + drawImage）+ DeviceFrame（liteWearable 圆/方屏）。
 - 帧节奏处理：按 protocolVersion 分支、忽略 region 优化（先整屏覆盖）。
@@ -86,14 +86,13 @@ UI 业务模块只依赖 `PreviewTransport`，为后续换宿主预留接缝。
 目标：同一份 UI 产物在 VSCode webview 中跑通，证明移植接缝有效。
 
 任务：
-- `host/gateways`：`EmbedGateway`（进程内回调接口）。
-- `host/integrations/vscode`：薄扩展——在扩展宿主用 `core + EmbedGateway` 起会话，
-  通过 `webview.postMessage` / `onDidReceiveMessage` 桥接。
+- `integrations/vscode`：TS 薄扩展（relay shim）——spawn `previewer-host` 二进制，连其 WS，
+  在 WS 与 `webview.postMessage`/`onDidReceiveMessage` 间转发。本地场景可直连 WS、跳过转发。
 - `ui/transport`：`VsCodeTransport`（`acquireVsCodeApi`），`detect()` 自动选择。
 - Webview HTML：用 `asWebviewUri` 加载 UI 产物，配好 CSP。
 
-**验收**：在 VSCode 里打开预览面板即见实时画面并可交互，**UI/core 代码相对 M1 零改动**
-（仅新增 Transport 实现 + gateway + 扩展壳）。
+**验收**：在 VSCode 里打开预览面板即见实时画面并可交互，**UI 与 Rust core/二进制相对 M1 零改动**
+（仅新增 UI 的 `VsCodeTransport` + TS relay shim 扩展壳）。
 
 ---
 

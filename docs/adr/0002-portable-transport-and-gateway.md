@@ -1,8 +1,10 @@
 # ADR 0002 — 可移植性：UI Transport 抽象 + Host core/gateway 拆分
 
-- 状态：已接受
+- 状态：已接受；**gateway 部分由 [ADR 0003](0003-host-in-rust.md) 修订**——Host 改 Rust 后，
+  「进程内 `EmbedGateway`」对 Node 宿主不成立，收敛为「单一 `WsGateway` + 外置 relay shim」。
+  本文 UI 侧 `PreviewTransport` 抽象（核心决策）完全保留。
 - 日期：2026-06-06
-- 关联：[ADR 0001](0001-two-component-host-ui-split.md)、[architecture §5](../architecture.md)
+- 关联：[ADR 0001](0001-two-component-host-ui-split.md)、[ADR 0003](0003-host-in-rust.md)、[architecture §5](../architecture.md)
 
 ## 背景
 

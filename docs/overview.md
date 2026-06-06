@@ -27,13 +27,13 @@ OpenHarmony SDK 自带的 `Simulator`（如
 ### 3.1 In scope（先做）
 
 - **liteWearable 形态**（圆/方表盘）的完整预览闭环：启动、收帧渲染、交互注入、设备传感器面板。
-- Preview Host（core + 可插拔 gateway）与 Preview UI（纯 Web + Transport 抽象）两个组件。
+- Preview Host（**Rust 单一静态二进制**，core + WsGateway）与 Preview UI（纯 Web + Transport 抽象）两个组件。
 - 与 `Simulator` 的两条通道：命令通道（LocalSocket/JSON）与图像通道（WebSocket/二进制帧）。
 - UI↔Host 的 `WebSocketTransport`（默认）+ 浏览器宿主闭环；为其他 webview 宿主预留 Transport 接缝。
 
 ### 3.2 Later（后续）
 
-- **VSCode webview 嵌入**（`VsCodeTransport` + `EmbedGateway` + 薄扩展，见 roadmap M5）。
+- **VSCode webview 嵌入**（`VsCodeTransport` + spawn Host 二进制 + TS relay shim，见 roadmap M5）。
 - 其他独立 webview 宿主：Electron / Tauri sidecar / pywebview 打包。
 - rich 形态（phone / tablet / tv / car，对应 `rich_previewer` 即 `Previewer` 二进制）。
 - 组件 Inspector（`inspector` 命令返回的组件树）与画面高亮联动。

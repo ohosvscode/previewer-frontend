@@ -1,3 +1,8 @@
+# Rust (host/)
+target/
+**/*.rs.bk
+
+# Node / UI (ui/, integrations/vscode/)
 node_modules/
 dist/
 build/

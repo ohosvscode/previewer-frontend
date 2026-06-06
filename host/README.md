@@ -2,30 +2,30 @@
 
 进程编排 + 协议网关（替代 DevEco 闭源 `index.js`）。
 
-详见 [`../docs/architecture.md`](../docs/architecture.md) §2 与
-[`../docs/protocol.md`](../docs/protocol.md)。
+**用 Rust 实现，编译为单一静态二进制 `previewer-host`，零运行时依赖**
+（理由见 [`../docs/adr/0003-host-in-rust.md`](../docs/adr/0003-host-in-rust.md)）。
+详见 [`../docs/architecture.md`](../docs/architecture.md) §2/§5 与 [`../docs/protocol.md`](../docs/protocol.md)。
 
 ## 结构（规划）
 
-拆为**运行时无关的 core** 与**可插拔 gateway**（理由见
-[`../docs/adr/0002-portable-transport-and-gateway.md`](../docs/adr/0002-portable-transport-and-gateway.md)）。
-
 ```
 host/
+├── Cargo.toml
 ├── src/
-│   ├── core/                 运行时无关，不假设 UI 如何连接
-│   │   ├── launcher.ts        分配端口/socket名/sid，拼 CLI，spawn 并监控 Simulator
-│   │   ├── command-bridge.ts  命令通道 server（domain socket/命名管道），JSON `\0` 分帧，请求-响应关联
-│   │   ├── frame-relay.ts     图像通道 WS client，解析 40 字节帧头，输出帧事件
-│   │   └── session.ts         组装会话；暴露 onFrame/onEvent/postControl/dispose
-│   ├── gateways/             可插拔，配对 UI Transport
-│   │   ├── ws-gateway.ts       WebSocket server + 静态托管 ui 产物（浏览器/独立 webview）
-│   │   └── embed-gateway.ts    进程内回调接口（供宿主接到自己的 IPC，如 VSCode postMessage）
-│   └── bin/
-│       └── cli.ts            独立入口：core + ws-gateway
-└── integrations/
-    └── vscode/               薄 VSCode 扩展：core + embed-gateway，桥接 webview postMessage
+│   ├── main.rs              入口：解析参数 → core + WsGateway
+│   ├── core/               不假设 UI 如何连接
+│   │   ├── launcher.rs       分配端口/socket名/sid，拼 CLI，spawn 并监控 Simulator
+│   │   ├── command_bridge.rs 命令通道 server（interprocess local_socket），JSON `\0` 分帧，请求-响应关联
+│   │   ├── frame_relay.rs    图像通道 WS client，解析 40 字节帧头，输出帧
+│   │   └── session.rs        组装会话；统一帧/事件下行、控制上行
+│   └── gateway/
+│       └── ws.rs            唯一对外形态：WebSocket server + 静态托管 ui 产物
+└── (沙箱宿主的 relay shim 不在此 crate)
+    integrations/vscode/     ↑ 见仓库 integrations，TS 薄扩展：spawn 二进制 + ws↔postMessage 转发
 ```
+
+建议 crate：`tokio` · `tokio-tungstenite` · `interprocess` · `serde`/`serde_json` ·
+`axum`+`tower-http` · `clap`。JPEG 纯透传，无需图像库。
 
 ## 状态
 
