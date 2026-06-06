@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--
+  Preview UI（vanilla，零构建）—— 替代 DevEco 闭源 ohpreviewer 的最小可移植实现。
+  只依赖 PreviewTransport，可在任意 webview / 浏览器加载。见 ../docs/architecture.md §3/§5。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenHarmony Previewer</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <main class="stage">
+    <div class="device device--circle" id="device">
+      <canvas id="screen" width="466" height="466"></canvas>
+    </div>
+    <div class="status" id="status">连接中…</div>
+  </main>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

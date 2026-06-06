@@ -26,19 +26,25 @@
 
 ---
 
-## M1 — 只读预览（确立移植接缝）
+## M1 — 只读预览（确立移植接缝）✅ 已完成（2026-06-06）
 
 目标：浏览器里看到实时画面，并**一次性把 Transport/gateway 接缝立起来**。
 
-任务：
-- `host`（Rust）：core（Launcher + FrameRelay + Session）+ `WsGateway`（单 WS + 静态托管），
-  产出单一二进制 `previewer-host`。
-- `ui/transport`：`PreviewTransport` 接口 + `WebSocketTransport` + `detect()`。
-- `ui/components`：ScreenCanvas（JPEG 解码 + drawImage）+ DeviceFrame（liteWearable 圆/方屏）。
-- 帧节奏处理：按 protocolVersion 分支、忽略 region 优化（先整屏覆盖）。
+产出：
+- `host`（Rust）：core（`launcher`/`command_bridge`/`frame_relay`/`session`）+ `gateway::ws`
+  （axum WS server + `ServeDir` 静态托管），单一二进制 `previewer-host`。
+- `ui`（vanilla，零构建）：`transport/`（`PreviewTransport` 契约 + `WebSocketTransport` + `detect`）、
+  `components/ScreenCanvas`（`createImageBitmap` 解码 + drawImage）、`style.css` 圆屏外框。
+- **Host 端最新帧缓存**（`tokio::watch`）：后连接的 UI 客户端立即拿到当前帧，解耦渲染/连接时序。
 
-**验收**：`host` 启动后浏览器打开即见实时刷新的应用画面（圆屏裁剪正确）；
-UI 业务模块只依赖 `PreviewTransport`，为后续换宿主预留接缝。
+**验收**：✅ `cargo run --bin previewer-host` 后浏览器打开 `http://127.0.0.1:9000` 即见
+liteWearable 实时画面（圆屏裁剪正确、LIVE 状态）。UI 仅依赖 `PreviewTransport`，接缝就位。
+
+运行：
+```bash
+cd host && cargo run --bin previewer-host   # 默认指向 SDK Simulator + 测试手表应用
+# 浏览器打开 http://127.0.0.1:9000
+```
 
 ---
 
