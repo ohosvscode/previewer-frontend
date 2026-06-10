@@ -125,15 +125,16 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
                 cmd.args(["-pages", s]);
             }
         }
+        // -ljPath 旁加载 pkgContextInfo.json：多模块工程的跨模块 ohmurl 解析必需（非仅调试）。
+        if let Some(lj) = &cfg.loader_json {
+            if let Some(s) = lj.to_str() {
+                cmd.args(["-ljPath", s]);
+            }
+        }
         // 调试模式：与 arkts-dap/VSCode 共用同一 Previewer。运行时启动即阻塞等调试器 attach。
-        // 归一化 ohmurl + -ljPath 见 arkts-dap/scripts/run-debug-target.sh（已实测命中断点）。
+        // 归一化 ohmurl 入口见 arkts-dap/scripts/run-debug-target.sh（已实测命中断点）。
         if cfg.debug {
             cmd.args(["-d", "-p", &cdp, "-abn", &cfg.debug_ability, "-abp", &abp]);
-            if let Some(lj) = &cfg.loader_json {
-                if let Some(s) = lj.to_str() {
-                    cmd.args(["-ljPath", s]);
-                }
-            }
         }
     }
 
