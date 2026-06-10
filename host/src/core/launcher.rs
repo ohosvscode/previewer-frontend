@@ -30,6 +30,7 @@ pub struct LaunchConfig {
     pub debug_module: String,            // abp 用：module 名（如 "entry"）
     pub debug_ability: String,           // -abn / abp 用：ability 名（如 "EntryAbility"）
     pub loader_json: Option<PathBuf>,    // -ljPath：旁加载 pkgContextInfo.json（ohmurl 解析必需）
+    pub hsp: Option<PathBuf>,            // -hsp：系统 HSP 根（HMS @kit/@hms 解析；代码自动追加 /systemHsp）
 }
 
 impl LaunchConfig {
@@ -129,6 +130,13 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
         if let Some(lj) = &cfg.loader_json {
             if let Some(s) = lj.to_str() {
                 cmd.args(["-ljPath", s]);
+            }
+        }
+        // -hsp 系统 HSP 根：HMS @kit/@hms 应用解析系统组件（如 @hms:hds.*）必需。
+        // 注意还需把 HMS 原生 module/ 并入 Previewer 的 cwd（见 scripts/compose-hms-previewer.sh）。
+        if let Some(hsp) = &cfg.hsp {
+            if let Some(s) = hsp.to_str() {
+                cmd.args(["-hsp", s]);
             }
         }
         // 调试模式：与 arkts-dap/VSCode 共用同一 Previewer。运行时启动即阻塞等调试器 attach。

@@ -75,9 +75,12 @@ struct Args {
     /// 调试用 ability 名（如 EntryAbility）
     #[arg(long, default_value = "EntryAbility")]
     debug_ability: String,
-    /// -ljPath loader.json 路径（旁加载 pkgContextInfo.json，调试解析 ohmurl 必需）
+    /// -ljPath loader.json 路径（旁加载 pkgContextInfo.json，多模块/调试解析 ohmurl 必需）
     #[arg(long)]
     ljpath: Option<PathBuf>,
+    /// -hsp 系统 HSP 根（HMS @kit/@hms 应用必需；指向 hms/previewer 目录，代码自动追加 /systemHsp）
+    #[arg(long)]
+    hsp: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -102,6 +105,7 @@ async fn main() -> Result<()> {
         debug_module: args.debug_module,
         debug_ability: args.debug_ability,
         loader_json: args.ljpath,
+        hsp: args.hsp,
     };
     if cfg.debug {
         println!(
