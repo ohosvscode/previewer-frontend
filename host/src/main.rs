@@ -61,6 +61,23 @@ struct Args {
     /// -pages router 配置文件路径（rich Stage 需要）
     #[arg(long)]
     pages: Option<PathBuf>,
+
+    // 调试模式（rich/Stage）：与 arkts-dap / VSCode 共用同一 Previewer 进程
+    /// 启用调试：Previewer 以 -d 启动，运行时阻塞等调试器 attach（用 arkts-dap --cdp-port）
+    #[arg(long)]
+    debug: bool,
+    /// CDP 调试端口（供 arkts-dap / VSCode attach）
+    #[arg(long, default_value_t = 29900)]
+    cdp_port: u16,
+    /// 调试用 module 名（abp 构造，如 entry）
+    #[arg(long, default_value = "entry")]
+    debug_module: String,
+    /// 调试用 ability 名（如 EntryAbility）
+    #[arg(long, default_value = "EntryAbility")]
+    debug_ability: String,
+    /// -ljPath loader.json 路径（旁加载 pkgContextInfo.json，调试解析 ohmurl 必需）
+    #[arg(long)]
+    ljpath: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -80,7 +97,19 @@ async fn main() -> Result<()> {
         project_model: args.project_model,
         app_resource_path: args.arp,
         pages: args.pages,
+        debug: args.debug,
+        cdp_port: args.cdp_port,
+        debug_module: args.debug_module,
+        debug_ability: args.debug_ability,
+        loader_json: args.ljpath,
     };
+    if cfg.debug {
+        println!(
+            "[host] 调试模式：Previewer 将阻塞等待调试器。请 attach:\n  \
+             arkts-dap --cdp-port {}\n  （或 VSCode: {{\"type\":\"arkts\",\"request\":\"attach\",\"cdpPort\":{}}}）",
+            cfg.cdp_port, cfg.cdp_port
+        );
+    }
 
     let session = Session::start(cfg).await?;
     let mut shutdown = session.subscribe_shutdown();

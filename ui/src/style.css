@@ -40,6 +40,7 @@ body {
 .tb-btn:active { transform: translateY(1px); }
 .tb-label { align-self: center; font-weight: 600; color: var(--text); margin-right: 4px; }
 .tb-note { align-self: center; color: var(--muted); font-size: 12px; }
+.tb-debug { align-self: center; color: #e0b34a; border: 1px solid #5a4d2a; background: #2e2a1c; border-radius: 6px; padding: 3px 8px; font-size: 12px; }
 
 /* Main = stage + panel */
 .main { display: flex; flex: 1; min-height: 0; }

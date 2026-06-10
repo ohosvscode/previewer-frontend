@@ -38,6 +38,8 @@ impl Session {
             "width": self.cfg.width,
             "height": self.cfg.height,
             "url": self.cfg.url,
+            "debug": self.cfg.debug,
+            "cdpPort": self.cfg.cdp_port,
         })
     }
 

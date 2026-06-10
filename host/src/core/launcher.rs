@@ -24,6 +24,12 @@ pub struct LaunchConfig {
     pub project_model: String,           // "FA" | "Stage"
     pub app_resource_path: Option<PathBuf>, // -arp
     pub pages: Option<PathBuf>,          // -pages（router 配置文件）
+    // 调试模式（rich/Stage）：与 arkts-dap / VSCode 共用同一 Previewer 进程
+    pub debug: bool,
+    pub cdp_port: u16,                   // -p：CDP 调试端口（供 arkts-dap attach）
+    pub debug_module: String,            // abp 用：module 名（如 "entry"）
+    pub debug_ability: String,           // -abn / abp 用：ability 名（如 "EntryAbility"）
+    pub loader_json: Option<PathBuf>,    // -ljPath：旁加载 pkgContextInfo.json（ohmurl 解析必需）
 }
 
 impl LaunchConfig {
@@ -102,6 +108,11 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
     ]);
 
     // rich（Stage/FA 非 lite）专属参数
+    let cdp = cfg.cdp_port.to_string();
+    let abp = format!(
+        "@normalized:N&&&{}/src/main/ets/entryability/{}&",
+        cfg.debug_module, cfg.debug_ability
+    );
     if !cfg.is_lite() {
         cmd.args(["-pm", &cfg.project_model, "-projectID", "ohprev"]);
         if let Some(arp) = &cfg.app_resource_path {
@@ -112,6 +123,16 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
         if let Some(pages) = &cfg.pages {
             if let Some(s) = pages.to_str() {
                 cmd.args(["-pages", s]);
+            }
+        }
+        // 调试模式：与 arkts-dap/VSCode 共用同一 Previewer。运行时启动即阻塞等调试器 attach。
+        // 归一化 ohmurl + -ljPath 见 arkts-dap/scripts/run-debug-target.sh（已实测命中断点）。
+        if cfg.debug {
+            cmd.args(["-d", "-p", &cdp, "-abn", &cfg.debug_ability, "-abp", &abp]);
+            if let Some(lj) = &cfg.loader_json {
+                if let Some(s) = lj.to_str() {
+                    cmd.args(["-ljPath", s]);
+                }
             }
         }
     }

@@ -51,10 +51,17 @@ function buildUI(hello) {
   new Toolbar(toolbarEl, transport, {
     isLite: hello.isLite,
     device: hello.device,
+    debug: hello.debug,
+    cdpPort: hello.cdpPort,
     url: hello.url || "pages/index/index",
     onInspect: inspector ? () => inspector.fetch() : null,
     onReconnect: () => transport.connect().catch(() => {}),
   });
+
+  // 调试模式：画面要等调试器 attach 并继续后才渲染（运行时启动即阻塞）
+  if (hello.debug && screen.frameCount === 0) {
+    setStatus(`🐞 等待调试器 attach（arkts-dap --cdp-port ${hello.cdpPort}）后画面才会出现`, "error");
+  }
 }
 
 let fps = 0;

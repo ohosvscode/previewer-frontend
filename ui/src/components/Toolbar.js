@@ -17,6 +17,15 @@ export class Toolbar {
     label.textContent = `${opts.device || "device"}${opts.isLite ? " · lite" : ""}`;
     root.appendChild(label);
 
+    // 调试徽章：与 arkts-dap/VSCode 共用同一 Previewer（CDP 端口）
+    if (opts.debug) {
+        const badge = document.createElement("span");
+        badge.className = "tb-debug";
+        badge.textContent = `🐞 调试 :${opts.cdpPort}`;
+        badge.title = `attach: arkts-dap --cdp-port ${opts.cdpPort}`;
+        root.appendChild(badge);
+    }
+
     const mk = (text, onClick, title) => {
       const b = document.createElement("button");
       b.className = "tb-btn";

@@ -138,10 +138,37 @@ cargo run --bin previewer-host -- \
 
 ---
 
+## M7 — 与 arkts-dap 集成（一键预览+调试 + 实时 Inspector）✅ 已完成（2026-06-10）
+
+目标：一个 Previewer 进程同时服务「浏览器实时预览」与「断点调试」，并解锁实时组件树。
+
+产出：
+- `launcher`/`main`：新增 `--debug --cdp-port --debug-module --debug-ability --ljpath`。
+  debug 模式给 Previewer 加 `-d -p <cdpPort> -abn -abp@normalized -ljPath`（启动配置见
+  `../../arkts-dap/scripts/run-debug-target.sh`，已实测命中断点）。
+- `hello` 暴露 `debug`/`cdpPort`；UI 显示 🐞 调试徽章 + attach 提示 + 「等待调试器」状态。
+- `scripts/preview-and-debug.sh`：一键启动（host --debug + 打印 arkts-dap attach 命令）。
+
+架构（两条独立通道，互不干扰、共用同一 Previewer）：
+```
+previewer-host  ──命令通道+图像通道──►  浏览器 UI（预览/交互/Inspector）
+arkts-dap/VSCode ──CDP(:cdpPort)──►  同一个 Previewer（断点调试）
+```
+
+**验收**（真实浏览器 + arkts-dap）：✅ host --debug 启动 → Previewer 阻塞等调试器；
+arkts-dap attach + continue → 浏览器渲染真实应用（Hello World, 1080×2340）+ 🐞 调试 :29902 徽章；
+✅ **实时 Inspector 可用**（debug 模式下 `inspector` 返回真实 live 树 `{$type:root,...}`，非 fallback；
+应用稳定运行态不再崩溃——此前崩溃是查询时机在 continue 中途的不稳定态）；
+✅ 断点调试与预览共存（命令/图像通道 vs CDP 通道互不干扰）。
+
+注意：debug 模式运行时启动即阻塞，画面要等调试器 attach 并 continue 过 break-on-start 后才出现。
+
+---
+
 ## 后续（Backlog）
 
 - rich 其它形态（tablet/tv/car/2in1，分辨率/shape 不同）+ FA rich。
-- `inspector` 实时组件树（接 ArkTS 调试器到 `-p` 端口）。
+- 实时组件树更深（当前 live 树仅 root 层；深层遍历待 previewer 支持）+ 画面节点高亮联动。
 - 折叠屏 `FoldStatus`/`-foldable`、多分辨率 `ResolutionSwitch`。
 - Fast Preview 热重载（`FastPreviewMsg`）。
 - 其他独立 webview 宿主：Electron / Tauri sidecar / pywebview 打包。

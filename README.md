@@ -64,6 +64,13 @@ cargo run --bin previewer-host -- --sim <SDK>/previewer/common/bin/Previewer \
 | M4 工具/稳定 | ✅ | 断线重连/背压/崩溃检测/优雅退出/DoS 上限（评审加固，实测） |
 | M5 VSCode | ◑ | `VsCodeTransport` + relay shim 扩展完成，契约已验证；待 VSCode 实跑 |
 | M6 rich 形态 | ✅ | 驱动 `Previewer` 渲染 phone Stage；rich 工具栏 + **Inspector 组件树** 实跑 |
+| M7 调试集成 | ✅ | 与 [arkts-dap](../arkts-dap/) 集成：一键预览+断点调试（共用 Previewer）+ **实时 Inspector** |
+
+一键预览+调试（rich/Stage）：
+```bash
+scripts/preview-and-debug.sh <工程>/entry/build/default/intermediates
+# 浏览器 http://127.0.0.1:9000 实时预览；arkts-dap --cdp-port 29900 断点调试（共用同一 Previewer）
+```
 
 **关键约束**：后端命令集按 **lite/rich 分流**——`inspector`/`ColorMode`/`Reload` 是 rich 专属，
 lite 仅传感器/触摸/表冠/语言。UI 按 Host `hello.isLite` 自适应。`inspector` 实时树需 ArkTS 调试器，
