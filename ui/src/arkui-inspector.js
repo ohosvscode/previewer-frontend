@@ -134,8 +134,9 @@ function build3D() {
   stage3d.innerHTML = "";
   if (!deviceTree || !snapW) return;
   const s = 220 / snapW; // 显示缩放（设备宽 → ~220px）
-  const gap = 22; // 每层深度的 Z 间距
+  const gap = 30; // 每层深度的 Z 间距
   const hasPerComp = perComp && perComp.size > 0;
+  const fullArea = snapW * snapH;
   stage3d.style.width = snapW * s + "px";
   stage3d.style.height = snapH * s + "px";
   const frag = document.createDocumentFragment();
@@ -147,10 +148,12 @@ function build3D() {
       const hasImg = cid && perComp && perComp.has(cid);
       // 逐组件模式：只画有自身渲染图的层（跳过几百个空容器线框，去杂乱）。
       const skipNoImg = hasPerComp && !hasImg;
+      // 跳过非根的近全屏层（Stack/Swiper/Navigation 各自渲染整页 → 重影），只留根截图 + 更小的具体组件。
+      const skipFull = depth > 0 && r.w * r.h >= fullArea * 0.9;
       // rect 去重（取整到 1px）：同一位置同尺寸只保留首个（最外层）。
       const key = `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`;
       const dup = seenRect.has(key);
-      if (!skipNoImg && !dup) {
+      if (!skipNoImg && !skipFull && !dup) {
         seenRect.add(key);
         const el = document.createElement("div");
         el.className = "layer3d" + (depth === 0 ? " layer3d-top" : "") + (hasImg ? " solo" : "");
