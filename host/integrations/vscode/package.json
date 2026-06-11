@@ -27,7 +27,7 @@
   },
   "scripts": {
     "bundle-ui": "rm -rf ui && mkdir -p ui && cp -R ../../../ui/index.html ../../../ui/src ui/ 2>/dev/null || (rm -rf ui && mkdir -p ui && cp -R ../../../ui/src ui/)",
-    "bundle-host": "node -e \"const fs=require('fs'),path=require('path');const exe=process.platform==='win32'?'previewer-host.exe':'previewer-host';const src=['release','debug'].map(p=>path.join('..','..','target',p,exe)).find(fs.existsSync);if(!src){console.error('host 未构建：先 cargo build --release');process.exit(1)}fs.mkdirSync('bin',{recursive:true});fs.copyFileSync(src,path.join('bin',exe));try{fs.chmodSync(path.join('bin',exe),0o755)}catch(e){}console.log('bundled host:',src)\"",
+    "bundle-host": "node -e \"const fs=require('fs'),path=require('path');const exe=process.env.OHPREV_HOST_EXE||(process.platform==='win32'?'previewer-host.exe':'previewer-host');const src=process.env.OHPREV_HOST_BIN||['release','debug'].map(p=>path.join('..','..','target',p,exe)).find(fs.existsSync);if(!src||!fs.existsSync(src)){console.error('host 未构建：先 cargo build --release 或设 OHPREV_HOST_BIN');process.exit(1)}fs.rmSync('bin',{recursive:true,force:true});fs.mkdirSync('bin',{recursive:true});fs.copyFileSync(src,path.join('bin',exe));try{fs.chmodSync(path.join('bin',exe),0o755)}catch(e){}console.log('bundled host:',src,'->','bin/'+exe)\"",
     "vscode:prepublish": "npm run bundle-ui && npm run bundle-host",
     "test": "vscode-test"
   },

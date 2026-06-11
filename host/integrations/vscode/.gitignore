@@ -4,3 +4,4 @@ ui/
 .vscode-test/
 .vscode-test.user/
 bin/
+dist/
