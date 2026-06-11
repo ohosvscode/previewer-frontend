@@ -21,6 +21,9 @@ const stage3d = document.getElementById("stage3d");
 let snapW = 0; // 截图像素宽（树 $rect 的坐标系），用于高亮缩放
 let snapH = 0;
 let snapUrl = null; // 截图 blob URL（3D 每层贴切片复用，避免 base64 内联 968 次爆内存）
+let perComp = null; // Map<id, blobUrl>：ArkUI.tree.3D 的逐组件渲染图（含遮挡/滚动外内容）
+let perCompUrls = []; // 待 revoke 的逐组件图 URL
+let layers3dFetched = false; // 本树是否已请求过逐组件图
 
 // base64 → Blob（PNG）。用于把整张截图建成一个 object URL，被所有 3D 层共享。
 function b64ToBlob(b64, type) {
@@ -146,9 +149,14 @@ function build3D() {
       el.style.height = r.h * s + "px";
       el.style.transform = `translateZ(${depth * gap}px)`;
       if (node.$ID != null) el.dataset.id = node.$ID;
-      // 每层贴设备截图对应 $rect 的切片 → 显示该组件真实渲染内容（DevEco 同款）。
-      // 共享同一个 blob URL；用 background-size/position 把整图定位到本层 rect 这一块。
-      if (snapUrl) {
+      // 贴图优先级：① 逐组件渲染图(ArkUI.tree.3D，含遮挡/滚动外内容) ② 回退截图切片。
+      const cid = node.$ID != null ? String(node.$ID) : null;
+      if (cid && perComp && perComp.has(cid)) {
+        el.style.backgroundImage = `url(${perComp.get(cid)})`;
+        el.style.backgroundSize = "100% 100%";
+        el.style.backgroundRepeat = "no-repeat";
+      } else if (snapUrl) {
+        // 截图整图定位到本层 rect 这一块（共享 blob URL）
         el.style.backgroundImage = `url(${snapUrl})`;
         el.style.backgroundSize = `${snapW * s}px ${snapH * s}px`;
         el.style.backgroundPosition = `${-r.x * s}px ${-r.y * s}px`;
@@ -184,6 +192,14 @@ function setMode3d(on) {
   scene3d.style.display = on ? "" : "none";
   if (on && !built3d) build3D();
   if (on) mark3dSelected(selectedId); // 保持当前选中
+  if (on && !layers3dFetched && deviceTree) requestLayers3d(); // 进 3D 自动取逐组件图
+}
+
+// 请求逐组件渲染图（ArkUI.tree.3D，逐个渲染较慢）。
+function requestLayers3d() {
+  layers3dFetched = true;
+  setStatus("正在渲染逐组件图…（逐个渲染，较慢，请稍候）");
+  vscode.postMessage({ channel: "fetch3dLayers" });
 }
 
 mode3dBtn.addEventListener("click", () => setMode3d(!is3d));
@@ -218,6 +234,10 @@ window.addEventListener("message", (e) => {
     const meta = m.meta || {};
     deviceTree = m.tree; // 存树供 hit-test（点截图反查节点）+ 3D 构建
     built3d = false; // 新树 → 3D 需重建
+    // 逐组件图随新树失效
+    if (perCompUrls.length) { perCompUrls.forEach((u) => URL.revokeObjectURL(u)); perCompUrls = []; }
+    perComp = null;
+    layers3dFetched = false;
     const total = countNodes(m.tree);
     setStatus(`✅ windowId=${meta.windowId ?? "?"} · ${total} 节点`, "ok");
     // 设备截图
@@ -239,6 +259,23 @@ window.addEventListener("message", (e) => {
     // 组件树（复用 InspectorPanel.onEvent 的 inspector 分支，result 为 JSON 字符串）
     inspector.onEvent({ command: "inspector", result: JSON.stringify(m.tree) });
     if (is3d) build3D(); // 3D 模式下立即重建
+  } else if (m.channel === "layers3d") {
+    // 逐组件渲染图到达 → 建 id→blobUrl 映射并重建 3D。
+    if (perCompUrls.length) { perCompUrls.forEach((u) => URL.revokeObjectURL(u)); perCompUrls = []; }
+    perComp = new Map();
+    for (const L of m.layers || []) {
+      if (L.id == null || !L.base64) continue;
+      const url = URL.createObjectURL(b64ToBlob(L.base64, "image/png"));
+      perCompUrls.push(url);
+      perComp.set(String(L.id), url);
+    }
+    const total = countNodes(deviceTree);
+    if (perComp.size > 0) {
+      setStatus(`✅ ${total} 节点 · 逐组件图 ${perComp.size} 层${m.complete ? "" : "（部分）"}`, "ok");
+      if (is3d) build3D();
+    } else {
+      setStatus("⚠ 未获取到逐组件图" + (m.err ? "：" + m.err : "（设备可能不支持/超时）"), "error");
+    }
   } else if (m.channel === "deviceStatus") {
     setStatus(m.message);
   } else if (m.channel === "deviceError") {

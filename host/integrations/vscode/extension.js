@@ -259,7 +259,23 @@ async function openArkuiInspector(context) {
   panel.webview.html = renderInspectorHtml(panel.webview, uiRoot);
 
   panel.webview.onDidReceiveMessage(async (m) => {
-    if (!m || m.channel !== "fetchDeviceTree") return;
+    if (!m) return;
+    // 3D 逐组件渲染图（ArkUI.tree.3D）——较慢，单独按需取。
+    if (m.channel === "fetch3dLayers") {
+      const sess = vscode.debug.activeDebugSession;
+      if (!sess || sess.type !== "arkts") {
+        panel.webview.postMessage({ channel: "layers3d", layers: [], complete: false, err: "无活跃 arkts 会话" });
+        return;
+      }
+      try {
+        const r = await sess.customRequest("getArkUI3DLayers", {});
+        panel.webview.postMessage({ channel: "layers3d", layers: (r && r.layers) || [], complete: !!(r && r.complete) });
+      } catch (e) {
+        panel.webview.postMessage({ channel: "layers3d", layers: [], complete: false, err: (e && e.message) ? e.message : String(e) });
+      }
+      return;
+    }
+    if (m.channel !== "fetchDeviceTree") return;
     const postStatus = (t) => panel.webview.postMessage({ channel: "deviceStatus", message: t });
     try {
       // 活跃 arkts 会话优先；没有则自动启动（不必手动先开调试）。
