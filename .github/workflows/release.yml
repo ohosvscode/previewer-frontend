@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vsix:
+    name: 平台专属 vsix ${{ matrix.vscode }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, vscode: linux-x64,    exe: previewer-host }
+          - { os: macos-latest,   target: aarch64-apple-darwin,     vscode: darwin-arm64, exe: previewer-host }
+          - { os: macos-13,       target: x86_64-apple-darwin,      vscode: darwin-x64,   exe: previewer-host }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   vscode: win32-x64,    exe: previewer-host.exe }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: host
+      - name: 构建 host（本平台原生）
+        run: cargo build --release --manifest-path host/Cargo.toml --target ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: 打平台专属 vsix（内置本平台 host）
+        shell: bash
+        working-directory: host/integrations/vscode
+        env:
+          OHPREV_HOST_BIN: ../../target/${{ matrix.target }}/release/${{ matrix.exe }}
+          OHPREV_HOST_EXE: ${{ matrix.exe }}
+        run: |
+          npm ci
+          npx --yes @vscode/vsce package --target ${{ matrix.vscode }} \
+            -o "oh-previewer-${{ matrix.vscode }}.vsix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oh-previewer-${{ matrix.vscode }}
+          path: host/integrations/vscode/oh-previewer-${{ matrix.vscode }}.vsix
+
+  release:
+    name: 发布 GitHub Release
+    needs: vsix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.vsix
+          generate_release_notes: true

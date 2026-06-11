@@ -45,7 +45,9 @@ pub async fn serve(session: Arc<Session>, ui_dir: PathBuf, bind_addr: &str) -> R
         ui_dir.display()
     );
     println!("[gateway] 浏览器打开 http://{actual} 即可预览");
-    axum::serve(listener, app).await.context("axum serve 失败")?;
+    axum::serve(listener, app)
+        .await
+        .context("axum serve 失败")?;
     Ok(())
 }
 

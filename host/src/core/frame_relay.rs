@@ -14,7 +14,9 @@ use tokio_tungstenite::tungstenite::Message;
 pub const MAGIC: u32 = 0x1234_5678;
 pub const HEAD_SIZE: usize = 40;
 
-/// 解析出的帧元信息（大端头）。
+/// 解析出的帧元信息（大端头）。字段记录 40 字节协议头布局，当前下游只用 JPEG 负载，
+/// 故暂未消费这些尺寸/版本字段（保留以文档化协议、便于将来按原始分辨率映射坐标）。
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct FrameMeta {
     pub orig_w: i32,

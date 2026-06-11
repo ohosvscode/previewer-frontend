@@ -46,7 +46,10 @@ impl Session {
     /// 启动会话：bind 命令通道 → spawn Simulator → accept 命令连接 → 启动帧中继 + 退出监控。
     pub async fn start(cfg: LaunchConfig) -> Result<Arc<Self>> {
         let ep = Endpoints::allocate()?;
-        println!("[session] base={} ws_port={} sid={}", ep.base, ep.ws_port, ep.sid);
+        println!(
+            "[session] base={} ws_port={} sid={}",
+            ep.base, ep.ws_port, ep.sid
+        );
 
         // 1. 先 listen 命令通道（必须在 spawn 之前）
         let _ = std::fs::remove_file(&ep.cmd_pipe);
@@ -55,7 +58,10 @@ impl Session {
 
         // 2. spawn Simulator
         let child = launcher::spawn_simulator(&cfg, &ep)?;
-        println!("[session] Simulator spawned, cwd=bin, 日志 {}", cfg.sim_log.display());
+        println!(
+            "[session] Simulator spawned, cwd=bin, 日志 {}",
+            cfg.sim_log.display()
+        );
 
         // 退出信号
         let (shutdown, shutdown_rx) = watch::channel(false);
@@ -89,7 +95,11 @@ impl Session {
 
         // 5. 帧中继：连 Simulator 图像通道，写入 watch（保留最新帧），shutdown 时停止
         let (frames, frames_keepalive) = watch::channel::<Option<Bytes>>(None);
-        tokio::spawn(frame_relay::run(ep.sim_ws_url(), frames.clone(), shutdown_rx));
+        tokio::spawn(frame_relay::run(
+            ep.sim_ws_url(),
+            frames.clone(),
+            shutdown_rx,
+        ));
 
         Ok(Arc::new(Self {
             endpoints: ep,

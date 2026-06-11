@@ -21,16 +21,16 @@ pub struct LaunchConfig {
     pub shape: String, // "circle" | "rect"
     pub sim_log: PathBuf,
     // rich（Stage 模型）专属，可选
-    pub project_model: String,           // "FA" | "Stage"
+    pub project_model: String,              // "FA" | "Stage"
     pub app_resource_path: Option<PathBuf>, // -arp
-    pub pages: Option<PathBuf>,          // -pages（router 配置文件）
+    pub pages: Option<PathBuf>,             // -pages（router 配置文件）
     // 调试模式（rich/Stage）：与 arkts-dap / VSCode 共用同一 Previewer 进程
     pub debug: bool,
-    pub cdp_port: u16,                   // -p：CDP 调试端口（供 arkts-dap attach）
-    pub debug_module: String,            // abp 用：module 名（如 "entry"）
-    pub debug_ability: String,           // -abn / abp 用：ability 名（如 "EntryAbility"）
-    pub loader_json: Option<PathBuf>,    // -ljPath：旁加载 pkgContextInfo.json（ohmurl 解析必需）
-    pub hsp: Option<PathBuf>,            // -hsp：系统 HSP 根（HMS @kit/@hms 解析；代码自动追加 /systemHsp）
+    pub cdp_port: u16,                // -p：CDP 调试端口（供 arkts-dap attach）
+    pub debug_module: String,         // abp 用：module 名（如 "entry"）
+    pub debug_ability: String,        // -abn / abp 用：ability 名（如 "EntryAbility"）
+    pub loader_json: Option<PathBuf>, // -ljPath：旁加载 pkgContextInfo.json（ohmurl 解析必需）
+    pub hsp: Option<PathBuf>, // -hsp：系统 HSP 根（HMS @kit/@hms 解析；代码自动追加 /systemHsp）
 }
 
 impl LaunchConfig {
@@ -62,7 +62,12 @@ impl Endpoints {
         // 固定宽度拼接，避免 pid/port 边界歧义造成跨会话碰撞（finding #26）；保持 [a-fA-F0-9]
         let sid = format!("{:08x}{:08x}", pid, ws_port);
         let cmd_pipe = format!("/tmp/{base}_commandPipe");
-        Ok(Self { base, cmd_pipe, ws_port, sid })
+        Ok(Self {
+            base,
+            cmd_pipe,
+            ws_port,
+            sid,
+        })
     }
 
     pub fn sim_ws_url(&self) -> String {
@@ -96,16 +101,28 @@ pub fn spawn_simulator(cfg: &LaunchConfig, ep: &Endpoints) -> Result<Child> {
     let port = ep.ws_port.to_string();
     let mut cmd = Command::new(&cfg.sim);
     cmd.current_dir(bin_dir).args([
-        "-device", &cfg.device,
-        "-shape", &cfg.shape,
-        "-or", &w, &h,
-        "-cr", &w, &h,
-        "-j", app_str,
-        "-n", &cfg.bundle,
-        "-url", &cfg.url,
-        "-s", &ep.base,
-        "-lws", &port,
-        "-sid", &ep.sid,
+        "-device",
+        &cfg.device,
+        "-shape",
+        &cfg.shape,
+        "-or",
+        &w,
+        &h,
+        "-cr",
+        &w,
+        &h,
+        "-j",
+        app_str,
+        "-n",
+        &cfg.bundle,
+        "-url",
+        &cfg.url,
+        "-s",
+        &ep.base,
+        "-lws",
+        &port,
+        "-sid",
+        &ep.sid,
     ]);
 
     // rich（Stage/FA 非 lite）专属参数

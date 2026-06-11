@@ -84,7 +84,11 @@ fn parse_header(buf: &[u8]) -> Result<FrameHeader> {
 
     let magic = beu32(0);
     if magic != MAGIC {
-        return Err(anyhow!("magic 不匹配: 期望 {:#010x} 得到 {:#010x}", MAGIC, magic));
+        return Err(anyhow!(
+            "magic 不匹配: 期望 {:#010x} 得到 {:#010x}",
+            MAGIC,
+            magic
+        ));
     }
     Ok(FrameHeader {
         orig_w: be32(4),
@@ -209,8 +213,8 @@ async fn main() -> Result<()> {
 
     // 1. 先建命令通道 server（必须在 spawn 之前）
     let _ = std::fs::remove_file(&cmd_pipe);
-    let listener = UnixListener::bind(&cmd_pipe)
-        .with_context(|| format!("bind 命令通道失败: {cmd_pipe}"))?;
+    let listener =
+        UnixListener::bind(&cmd_pipe).with_context(|| format!("bind 命令通道失败: {cmd_pipe}"))?;
     let cmd_task = tokio::spawn(pump_command_channel(listener));
 
     // 2. spawn Simulator
@@ -220,22 +224,38 @@ async fn main() -> Result<()> {
     let mut child = Command::new(&args.sim)
         .current_dir(&bin_dir)
         .args([
-            "-device", "liteWearable",
-            "-shape", "circle",
-            "-or", "466", "466",
-            "-cr", "466", "466",
-            "-j", args.app.to_str().unwrap(),
-            "-n", &args.bundle,
-            "-url", &args.url,
-            "-s", &base,
-            "-lws", &args.port.to_string(),
-            "-sid", &sid,
+            "-device",
+            "liteWearable",
+            "-shape",
+            "circle",
+            "-or",
+            "466",
+            "466",
+            "-cr",
+            "466",
+            "466",
+            "-j",
+            args.app.to_str().unwrap(),
+            "-n",
+            &args.bundle,
+            "-url",
+            &args.url,
+            "-s",
+            &base,
+            "-lws",
+            &args.port.to_string(),
+            "-sid",
+            &sid,
         ])
         .stdout(log)
         .stderr(log_err)
         .spawn()
         .context("spawn Simulator 失败")?;
-    println!("[sim] 已启动 pid={:?}（日志 {}）", child.id(), args.sim_log.display());
+    println!(
+        "[sim] 已启动 pid={:?}（日志 {}）",
+        child.id(),
+        args.sim_log.display()
+    );
 
     // 3. 抓帧：首连等 2.5s；失败则重连（触发缓存首帧补发）
     let url = format!("ws://127.0.0.1:{}/{sid}", args.port);

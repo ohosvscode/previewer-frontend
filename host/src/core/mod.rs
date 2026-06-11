@@ -14,11 +14,7 @@ pub use session::Session;
 pub const COMMAND_VERSION: &str = "1.0.1";
 
 /// 构造命令通道请求信封：`{version, command, type, args}`。
-pub fn build_command(
-    command: &str,
-    cmd_type: &str,
-    args: serde_json::Value,
-) -> serde_json::Value {
+pub fn build_command(command: &str, cmd_type: &str, args: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "version": COMMAND_VERSION,
         "command": command,
