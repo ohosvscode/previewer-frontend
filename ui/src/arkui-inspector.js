@@ -20,7 +20,15 @@ const stage3d = document.getElementById("stage3d");
 
 let snapW = 0; // 截图像素宽（树 $rect 的坐标系），用于高亮缩放
 let snapH = 0;
-let snapB64 = null; // 截图 base64，3D 顶层贴图用
+let snapUrl = null; // 截图 blob URL（3D 每层贴切片复用，避免 base64 内联 968 次爆内存）
+
+// base64 → Blob（PNG）。用于把整张截图建成一个 object URL，被所有 3D 层共享。
+function b64ToBlob(b64, type) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
 let lastRect = null; // 当前选中节点的 rect，供 resize / 图片 load 后重算掩膜
 let deviceTree = null; // 当前完整树根（原始 $type/$rect），供「点截图 → 反查节点」hit-test
 
@@ -138,8 +146,14 @@ function build3D() {
       el.style.height = r.h * s + "px";
       el.style.transform = `translateZ(${depth * gap}px)`;
       if (node.$ID != null) el.dataset.id = node.$ID;
-      // 顶层贴设备截图，直观对应
-      if (depth === 0 && snapB64) el.style.backgroundImage = `url(data:image/png;base64,${snapB64})`;
+      // 每层贴设备截图对应 $rect 的切片 → 显示该组件真实渲染内容（DevEco 同款）。
+      // 共享同一个 blob URL；用 background-size/position 把整图定位到本层 rect 这一块。
+      if (snapUrl) {
+        el.style.backgroundImage = `url(${snapUrl})`;
+        el.style.backgroundSize = `${snapW * s}px ${snapH * s}px`;
+        el.style.backgroundPosition = `${-r.x * s}px ${-r.y * s}px`;
+        el.style.backgroundRepeat = "no-repeat";
+      }
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (node.$ID != null) inspector.selectById(node.$ID);
@@ -208,15 +222,16 @@ window.addEventListener("message", (e) => {
     setStatus(`✅ windowId=${meta.windowId ?? "?"} · ${total} 节点`, "ok");
     // 设备截图
     hl.style.display = "none";
+    if (snapUrl) { URL.revokeObjectURL(snapUrl); snapUrl = null; }
     if (m.snapshot && m.snapshot.base64) {
       snapW = m.snapshot.width || 0;
       snapH = m.snapshot.height || 0;
-      snapB64 = m.snapshot.base64;
-      shotImg.src = "data:image/png;base64," + m.snapshot.base64;
+      snapUrl = URL.createObjectURL(b64ToBlob(m.snapshot.base64, "image/png"));
+      shotImg.src = snapUrl;
       shotImg.style.display = "block";
       shotHint.style.display = "none";
     } else {
-      snapW = 0; snapH = 0; snapB64 = null;
+      snapW = 0; snapH = 0;
       shotImg.style.display = "none";
       shotHint.style.display = "block";
       shotHint.textContent = "（本次未返回设备截图）";
