@@ -310,12 +310,12 @@ function renderInspectorHtml(webview, uiRoot) {
   <title>ArkUI 组件树检查器</title>
   <style>
     body { margin: 0; }
-    .ai-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #000; background: var(--panel-bg); position: sticky; top: 0; z-index: 2; }
-    .ai-btn { background: #32343a; color: var(--text); border: 1px solid #3c3f46; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+    .ai-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--panel-bg); position: sticky; top: 0; z-index: 2; }
+    .ai-btn { background: var(--btn-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
     .ai-btn:hover { border-color: var(--accent); }
     .ai-status { color: var(--muted); font-size: 12px; }
-    .ai-status.ok { color: #4ec98a; }
-    .ai-status.error { color: #e26d6d; }
+    .ai-status.ok { color: var(--good); }
+    .ai-status.error { color: var(--bad); }
     /* DevEco 式三栏：设备截图（左） | 组件树 + 属性（右）。点节点 → 截图上高亮。 */
     .ai-body { display: flex; align-items: flex-start; gap: 0; }
     .ai-screen { flex: 0 0 auto; padding: 12px 14px; position: sticky; top: 49px; }
