@@ -21,6 +21,14 @@ const SAMPLE = process.env.OHPREV_WS || '/Users/sanchuan/Documents/sample_in_har
 const RICH = `${HOME}/Library/OpenHarmony/Sdk/23/previewer/common/bin/Previewer`;
 const SAMPLE_RICH_APP = `${SAMPLE}/products/phone/build/default/intermediates/loader_out/default/ets`;
 
+/** 跨平台杀掉残留的 host + Previewer/Simulator 进程。 */
+function killHosts() {
+  const cmds = process.platform === 'win32'
+    ? ['taskkill /F /T /IM previewer-host.exe', 'taskkill /F /T /IM Previewer.exe', 'taskkill /F /T /IM Simulator.exe']
+    : ['pkill -f previewer-host', 'pkill -f common/bin/Previewer', 'pkill -f liteWearable/bin/Simulator'];
+  for (const c of cmds) { try { cp.execSync(c, { stdio: 'ignore' }); } catch { /* none */ } }
+}
+
 function extDir() {
   return vscode.extensions.getExtension(EXT_ID).extensionPath;
 }
@@ -69,12 +77,11 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
       console.log('[ohprev-e2e] 跳过：' + reasons.join('；'));
       this.skip();
     }
-    try { cp.execSync('pkill -f previewer-host'); } catch { /* none */ }
+    killHosts();
   });
 
   afterEach(async () => {
-    try { cp.execSync('pkill -f previewer-host'); } catch { /* none */ }
-    try { cp.execSync('pkill -f common/bin/Previewer'); } catch { /* none */ }
+    killHosts();
     await new Promise((r) => setTimeout(r, 500));
   });
 

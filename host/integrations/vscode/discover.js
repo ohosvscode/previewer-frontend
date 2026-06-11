@@ -5,31 +5,83 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-/** 找 SDK 的 previewer 目录（含 common/bin/Previewer 与 liteWearable/bin/Simulator）。 */
-function findPreviewerDir(explicit) {
-  const cands = [];
-  if (explicit) {
-    cands.push(explicit);                          // 可能直接是 previewer 目录
-    cands.push(path.join(explicit, "previewer"));  // 或 SDK 根
-  }
-  const home = os.homedir();
-  // ~/Library/OpenHarmony/Sdk/<ver>/previewer（取存在的最高版本）
-  const sdkRoot = path.join(home, "Library", "OpenHarmony", "Sdk");
+const EXE = process.platform === "win32" ? ".exe" : "";
+
+/** 一个 previewer 目录是否含有可用工具（rich Previewer 或 lite Simulator）。 */
+function hasPreviewer(dir) {
+  return !!dir && (
+    fs.existsSync(path.join(dir, "common", "bin", "Previewer" + EXE)) ||
+    fs.existsSync(path.join(dir, "liteWearable", "bin", "Simulator" + EXE))
+  );
+}
+
+/** 由一个「基目录」展开候选 previewer 目录：base/previewer、base 本身、base/<ver>/previewer（版本倒序）。 */
+function expandSdkBase(base) {
+  const out = [base, path.join(base, "previewer")];
+  // SDK 根下常是 <ver>/previewer（如 .../Sdk/23/previewer）；也兼容 OpenHarmony/Sdk/HarmonyOS-NEXT/... 命名
+  let vers = [];
   try {
-    for (const ver of fs.readdirSync(sdkRoot).sort().reverse()) {
-      cands.push(path.join(sdkRoot, ver, "previewer"));
-    }
+    vers = fs.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch { /* none */ }
-  cands.push("/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/previewer");
-  cands.push("/Applications/DevEco-Studio.app/Contents/sdk/default/hms/previewer");
-  for (const c of cands) {
-    if (c && fs.existsSync(path.join(c, "common", "bin", "Previewer"))) return c;
-    if (c && fs.existsSync(path.join(c, "liteWearable", "bin", "Simulator"))) return c;
+  // 数字版本优先、倒序；非数字（如 HarmonyOS-NEXT）追加在后
+  vers.sort((a, b) => {
+    const na = parseInt(a, 10), nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb)) return nb - na;
+    if (!isNaN(na)) return -1;
+    if (!isNaN(nb)) return 1;
+    return b.localeCompare(a);
+  });
+  for (const v of vers) {
+    out.push(path.join(base, v, "previewer"));
+    out.push(path.join(base, v, "openharmony", "previewer"));
+    out.push(path.join(base, v, "hms", "previewer"));
+  }
+  return out;
+}
+
+/** 跨平台找 SDK 的 previewer 目录（含 common/bin/Previewer 与 liteWearable/bin/Simulator）。 */
+function findPreviewerDir(explicit) {
+  const home = os.homedir();
+  const env = process.env;
+  const bases = [];
+  if (explicit) bases.push(explicit);
+  // 环境变量（各 IDE/CI 常用）
+  for (const k of ["OHOS_SDK_HOME", "HOS_SDK_HOME", "DEVECO_SDK_HOME", "OHOS_BASE_SDK_HOME", "HARMONYOS_SDK_HOME"]) {
+    if (env[k]) bases.push(env[k]);
+  }
+  if (process.platform === "darwin") {
+    bases.push(
+      path.join(home, "Library", "OpenHarmony", "Sdk"),
+      path.join(home, "Library", "Huawei", "Sdk"),
+      "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony",
+      "/Applications/DevEco-Studio.app/Contents/sdk/default/hms",
+    );
+  } else if (process.platform === "win32") {
+    const la = env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+    bases.push(
+      path.join(la, "OpenHarmony", "Sdk"),
+      path.join(la, "Huawei", "Sdk"),
+      "C:\\Program Files\\Huawei\\DevEco Studio\\sdk\\default\\openharmony",
+      "C:\\Program Files\\Huawei\\DevEco Studio\\sdk\\default\\hms",
+    );
+  } else {
+    // linux
+    bases.push(
+      path.join(home, "OpenHarmony", "Sdk"),
+      path.join(home, "Huawei", "Sdk"),
+      path.join(home, ".harmonyos", "sdk"),
+      "/opt/deveco-studio/sdk/default/openharmony",
+      "/opt/deveco-studio/sdk/default/hms",
+    );
+  }
+  for (const base of bases) {
+    if (!base) continue;
+    for (const dir of expandSdkBase(base)) {
+      if (hasPreviewer(dir)) return dir;
+    }
   }
   return null;
 }
-
-const EXE = process.platform === "win32" ? ".exe" : "";
 function liteSimulator(prevDir) { return path.join(prevDir, "liteWearable", "bin", "Simulator" + EXE); }
 function richPreviewer(prevDir) { return path.join(prevDir, "common", "bin", "Previewer" + EXE); }
 
