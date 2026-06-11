@@ -27,7 +27,8 @@
   },
   "scripts": {
     "bundle-ui": "rm -rf ui && mkdir -p ui && cp -R ../../../ui/index.html ../../../ui/src ui/ 2>/dev/null || (rm -rf ui && mkdir -p ui && cp -R ../../../ui/src ui/)",
-    "vscode:prepublish": "npm run bundle-ui",
+    "bundle-host": "node -e \"const fs=require('fs'),path=require('path');const exe=process.platform==='win32'?'previewer-host.exe':'previewer-host';const src=['release','debug'].map(p=>path.join('..','..','target',p,exe)).find(fs.existsSync);if(!src){console.error('host 未构建：先 cargo build --release');process.exit(1)}fs.mkdirSync('bin',{recursive:true});fs.copyFileSync(src,path.join('bin',exe));try{fs.chmodSync(path.join('bin',exe),0o755)}catch(e){}console.log('bundled host:',src)\"",
+    "vscode:prepublish": "npm run bundle-ui && npm run bundle-host",
     "test": "vscode-test"
   },
   "dependencies": {

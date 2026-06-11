@@ -146,7 +146,11 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
 
     const cfg = vscode.workspace.getConfiguration('ohPreviewer');
     const G = vscode.ConfigurationTarget.Global;
-    await cfg.update('hostBin', hostBin(), G);
+    // 优先验证「打包进 vsix 的 host」：有 bin/ 就不设 hostBin（resolveHostBin 用 extensionPath/bin），
+    // 否则回退 dev 路径。这条用例顺带证明安装后开箱即用（无需手填 hostBin）。
+    const exe = process.platform === 'win32' ? 'previewer-host.exe' : 'previewer-host';
+    const bundledHost = path.join(extDir(), 'bin', exe);
+    await cfg.update('hostBin', fs.existsSync(bundledHost) ? undefined : hostBin(), G);
     // 清空手动覆盖 → 走自动发现/自动选择（工作区即 sample，见 .vscode-test.mjs workspaceFolder）
     await cfg.update('sim', undefined, G);
     await cfg.update('app', undefined, G);

@@ -3,3 +3,4 @@ node_modules/
 ui/
 .vscode-test/
 .vscode-test.user/
+bin/

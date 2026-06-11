@@ -28,8 +28,15 @@ function resolveHostBin(context) {
   const cfg = vscode.workspace.getConfiguration("ohPreviewer");
   const explicit = cfg.get("hostBin");
   if (explicit) return explicit;
-  const hostRoot = path.resolve(context.extensionPath, "..", "..");
   const exe = process.platform === "win32" ? "previewer-host.exe" : "previewer-host";
+  // 1) 打进 vsix 的 bin/（安装后开箱即用，见 npm run bundle-host）
+  const bundled = path.join(context.extensionPath, "bin", exe);
+  if (fs.existsSync(bundled)) {
+    try { fs.chmodSync(bundled, 0o755); } catch { /* none */ }
+    return bundled;
+  }
+  // 2) 开发态：仓库 host/target/{release,debug}
+  const hostRoot = path.resolve(context.extensionPath, "..", "..");
   for (const prof of ["release", "debug"]) {
     const p = path.join(hostRoot, "target", prof, exe);
     if (fs.existsSync(p)) return p;
