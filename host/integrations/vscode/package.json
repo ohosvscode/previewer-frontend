@@ -18,8 +18,9 @@
       "title": "OpenHarmony Previewer",
       "properties": {
         "ohPreviewer.hostBin": { "type": "string", "default": "", "description": "previewer-host 可执行文件路径（留空则按平台在 ../../target 下查找）" },
-        "ohPreviewer.sim": { "type": "string", "default": "", "description": "Simulator 路径（透传给 host --sim）" },
-        "ohPreviewer.app": { "type": "string", "default": "", "description": "已编译 liteWearable 应用目录（透传给 host --app）" },
+        "ohPreviewer.sdk": { "type": "string", "default": "", "description": "OpenHarmony SDK 或其 previewer 目录（留空则自动发现 ~/Library/OpenHarmony/Sdk 与 DevEco）。用于自动选择 liteWearable Simulator（FA）/ common Previewer（Stage）。" },
+        "ohPreviewer.sim": { "type": "string", "default": "", "description": "Simulator/Previewer 路径（手动覆盖；与 app 同时设置才生效，否则走自动发现）" },
+        "ohPreviewer.app": { "type": "string", "default": "", "description": "已编译应用目录（手动覆盖；留空则按工程构建产物自动探测 FA/Stage）" },
         "ohPreviewer.bind": { "type": "string", "default": "", "description": "host gateway 监听地址。留空则用 127.0.0.1:0 由 OS 动态分配端口（推荐，避免端口冲突/多开）；可填 127.0.0.1:9000 固定。" }
       }
     }

@@ -10,10 +10,13 @@ const vscode = require("vscode");
 const cp = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const discover = require("./discover");
 
 // 「画面已渲染」观测：webview 每画一帧回发 {channel:"rendered"}，这里计数 + 广播，供集成测试断言整条画面环。
 let renderedCount = 0;
 const renderedEmitter = new vscode.EventEmitter();
+// 最近一次自动选择的配置（model/bundle/device…），供集成测试断言「自动发现/自动选择」结果。
+let lastPicked = null;
 
 /** 取 Node 全局或 ws 包的 WebSocket 实现。*/
 function getWebSocketCtor() {
@@ -52,7 +55,8 @@ function activate(context) {
   return {
     onRendered: renderedEmitter.event,
     lastRenderedCount: () => renderedCount,
-    resetRendered: () => { renderedCount = 0; },
+    resetRendered: () => { renderedCount = 0; lastPicked = null; },
+    lastPicked: () => lastPicked,
   };
 }
 
@@ -72,10 +76,33 @@ async function openPreview(context) {
   let gatewayAddr = null;
   let webviewReady = false;
 
-  // 1. spawn host
-  const args = ["--bind", bind];
-  if (cfg.get("sim")) args.push("--sim", cfg.get("sim"));
-  if (cfg.get("app")) args.push("--app", cfg.get("app"));
+  // 1. 解析启动参数：手填 sim+app 则尊重；否则**自动发现工具 + 按工程自动选择** lite/rich。
+  let args;
+  const explicitSim = cfg.get("sim");
+  const explicitApp = cfg.get("app");
+  if (explicitSim && explicitApp) {
+    args = ["--sim", explicitSim, "--app", explicitApp, "--bind", bind];
+  } else {
+    const prevDir = discover.findPreviewerDir(cfg.get("sdk"));
+    if (!prevDir) {
+      vscode.window.showErrorMessage("未发现 SDK previewer 工具（liteWearable/Simulator 或 common/Previewer），请设置 ohPreviewer.sdk 指向 SDK。");
+      return;
+    }
+    const root = (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0])
+      ? vscode.workspace.workspaceFolders[0].uri.fsPath : null;
+    const det = root ? discover.detectProject(root, prevDir) : null;
+    if (!det) {
+      vscode.window.showErrorMessage("未在当前工程发现可预览的构建产物（先构建工程，或手动设 ohPreviewer.sim/app）。");
+      return;
+    }
+    args = discover.buildHostArgs(det, bind);
+    lastPicked = det;
+    vscode.window.showInformationMessage(
+      `Previewer 自动选择：${det.model === "rich" ? "rich Previewer（Stage·" + det.device + "）" : "liteWearable Simulator（FA）"} · 模块 ${det.bundle}`
+    );
+  }
+
+  // 1b. spawn host
   const host = cp.spawn(hostBin, args, { stdio: "pipe" });
   const onOut = (d) => {
     const s = d.toString();

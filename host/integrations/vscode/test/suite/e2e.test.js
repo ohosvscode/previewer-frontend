@@ -16,6 +16,10 @@ const BIND = `127.0.0.1:${PORT}`;
 const HOME = process.env.HOME || '';
 const SIM = process.env.OHPREV_SIM || `${HOME}/Library/OpenHarmony/Sdk/23/previewer/liteWearable/bin/Simulator`;
 const APP = process.env.OHPREV_APP || `${HOME}/DevEcoStudioProjects/claude/entry/build/default/intermediates/loader_out_lite/default/js/MainAbility`;
+// 自动发现/自动选择用例：以 sample（Stage）作工作区，扩展应自动选 rich Previewer。
+const SAMPLE = process.env.OHPREV_WS || '/Users/sanchuan/Documents/sample_in_harmonyos';
+const RICH = `${HOME}/Library/OpenHarmony/Sdk/23/previewer/common/bin/Previewer`;
+const SAMPLE_RICH_APP = `${SAMPLE}/products/phone/build/default/intermediates/loader_out/default/ets`;
 
 function extDir() {
   return vscode.extensions.getExtension(EXT_ID).extensionPath;
@@ -70,6 +74,7 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
 
   afterEach(async () => {
     try { cp.execSync('pkill -f previewer-host'); } catch { /* none */ }
+    try { cp.execSync('pkill -f common/bin/Previewer'); } catch { /* none */ }
     await new Promise((r) => setTimeout(r, 500));
   });
 
@@ -122,5 +127,37 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
     }
     assert.ok(api.lastRenderedCount() > 0,
       `webview 应至少渲染一帧（实际 ${api.lastRenderedCount()}）——完整画面环未跑通`);
+  });
+
+  it('自动发现/自动选择：sample(Stage) → rich Previewer 并渲染', async function () {
+    if (!fs.existsSync(RICH)) { console.log('[ohprev-e2e] 跳过 rich：无 ' + RICH); this.skip(); }
+    if (!fs.existsSync(SAMPLE_RICH_APP)) { console.log('[ohprev-e2e] 跳过 rich：sample 未构建 ' + SAMPLE_RICH_APP); this.skip(); }
+
+    const api = await vscode.extensions.getExtension(EXT_ID).activate();
+    assert.ok(api && typeof api.lastPicked === 'function', '扩展应导出 lastPicked');
+    api.resetRendered();
+
+    const cfg = vscode.workspace.getConfiguration('ohPreviewer');
+    const G = vscode.ConfigurationTarget.Global;
+    await cfg.update('hostBin', hostBin(), G);
+    // 清空手动覆盖 → 走自动发现/自动选择（工作区即 sample，见 .vscode-test.mjs workspaceFolder）
+    await cfg.update('sim', undefined, G);
+    await cfg.update('app', undefined, G);
+    await cfg.update('sdk', undefined, G);
+    await cfg.update('bind', '', G); // 动态端口
+
+    await vscode.commands.executeCommand('ohPreviewer.open');
+
+    // 等自动选择落定 + 画面渲染
+    const deadline = Date.now() + 60000;
+    while (Date.now() < deadline && api.lastRenderedCount() === 0) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const picked = api.lastPicked();
+    assert.ok(picked, '应自动选择到一个 previewer 配置');
+    assert.strictEqual(picked.model, 'rich', `Stage 工程应自动选 rich，实际 ${picked.model}`);
+    assert.strictEqual(picked.bundle, 'phone', `应识别模块 phone，实际 ${picked.bundle}`);
+    assert.ok(/common\/bin\/Previewer/.test(picked.sim), 'sim 应为 rich Previewer');
+    assert.ok(api.lastRenderedCount() > 0, `sample 应渲染出帧（实际 ${api.lastRenderedCount()}）`);
   });
 });
