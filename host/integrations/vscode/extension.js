@@ -260,27 +260,40 @@ async function openArkuiInspector(context) {
 
   panel.webview.onDidReceiveMessage(async (m) => {
     if (!m || m.channel !== "fetchDeviceTree") return;
-    // 取活跃调试会话——必须是 arkts-dap（type==="arkts"）；否则提示如何进入真机调试。
-    const sess = vscode.debug.activeDebugSession;
-    if (!sess || sess.type !== "arkts") {
-      panel.webview.postMessage({
-        channel: "deviceError",
-        message: "无活跃的 arkts-dap 真机调试会话。请先用 arkts-dap 启动真机调试（--device <bundle> --launch），再回到此视图刷新。",
-      });
-      return;
-    }
+    const postStatus = (t) => panel.webview.postMessage({ channel: "deviceStatus", message: t });
     try {
-      // arkts-dap 自定义请求：未传 windowId 时其内部经 hidumper 自动发现焦点窗口。
-      const res = await sess.customRequest("getArkUITree", {});
-      const norm = res && res.tree ? res.tree : null; // {windowId,vsyncId,processId,tree}
-      const content = norm && norm.tree ? norm.tree : null; // 组件树根（$type:"root"）
-      if (!content) {
-        panel.webview.postMessage({ channel: "deviceError", message: "getArkUITree 未返回树（设备无响应/窗口不对/app 未渲染）" });
+      // 活跃 arkts 会话优先；没有则自动启动（不必手动先开调试）。
+      let sess = vscode.debug.activeDebugSession;
+      if (!sess || sess.type !== "arkts") {
+        postStatus("未发现活跃 arkts 会话，正在自动启动真机调试…");
+        sess = await autoStartArktsSession(postStatus);
+      }
+      if (!sess) {
+        panel.webview.postMessage({
+          channel: "deviceError",
+          message: "无活跃 arkts 会话，且未找到可自动启动的配置（launch.json 无 type=arkts，工程也未识别到 bundle）。请配置 arkts 真机调试后重试。",
+        });
         return;
       }
+      // 自动启动后需几秒建 ConnectServer + 渲染；重试 getArkUITree 直到成功（未传 windowId → arkts-dap 经 hidumper 自动发现）。
+      postStatus("会话就绪，正在抓取组件树…");
+      let res = null, lastErr = "";
+      for (let i = 0; i < 15; i++) {
+        try {
+          const r = await sess.customRequest("getArkUITree", {});
+          if (r && r.tree && r.tree.tree) { res = r; break; }
+        } catch (e) { lastErr = e && e.message ? e.message : String(e); }
+        await sleep(1000);
+        postStatus(`等待 ConnectServer / 渲染…（${i + 1}/15）`);
+      }
+      if (!res) {
+        panel.webview.postMessage({ channel: "deviceError", message: "getArkUITree 未成功：" + (lastErr || "超时（设备无响应/窗口不对/app 未渲染）") });
+        return;
+      }
+      const norm = res.tree; // {windowId,vsyncId,processId,tree}
       panel.webview.postMessage({
         channel: "deviceTree",
-        tree: content,
+        tree: norm.tree,
         snapshot: res.snapshot || null, // {base64,width,height,...}：设备截图，供叠加高亮
         meta: { windowId: norm.windowId, vsyncId: norm.vsyncId, processId: norm.processId },
       });
@@ -288,6 +301,58 @@ async function openArkuiInspector(context) {
       panel.webview.postMessage({ channel: "deviceError", message: "getArkUITree 失败：" + (e && e.message ? e.message : String(e)) });
     }
   });
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// 无活跃 arkts 会话时自动启动一个：优先 launch.json 的 arkts 配置，否则从工程合成。
+// 返回就绪的 arkts 调试会话；失败返回 null（调用方提示）。会重启目标 app（launch -D）。
+async function autoStartArktsSession(postStatus) {
+  const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+  let cfg = null;
+  try {
+    const cfgs = vscode.workspace.getConfiguration("launch", folder && folder.uri).get("configurations") || [];
+    cfg = cfgs.find((c) => c && c.type === "arkts");
+  } catch { /* 无 launch.json */ }
+  if (!cfg) cfg = discoverArktsConfig(folder); // 从 AppScope/app.json5 + module.json5 合成
+  if (!cfg) return null;
+  postStatus(`自动启动 arkts 调试「${cfg.name || cfg.device}」…（会重启目标 app）`);
+  let ok = false;
+  try { ok = await vscode.debug.startDebugging(folder, cfg); } catch { ok = false; }
+  if (!ok) return null;
+  for (let i = 0; i < 30; i++) { // 等会话出现（最多 15s）
+    const s = vscode.debug.activeDebugSession;
+    if (s && s.type === "arkts") return s;
+    await sleep(500);
+  }
+  return null;
+}
+
+// 宽松读 JSON5（去注释 + 尾逗号）→ JSON.parse。失败返回 null。
+function readJson5(file) {
+  try {
+    let s = fs.readFileSync(file, "utf8");
+    s = s.replace(/\/\*[\s\S]*?\*\//g, "");      // 块注释
+    s = s.replace(/(^|[^:])\/\/[^\n]*/g, "$1");   // 行注释（避开 URL 的 ://）
+    s = s.replace(/,(\s*[}\]])/g, "$1");           // 尾逗号
+    return JSON.parse(s);
+  } catch { return null; }
+}
+
+// 从工程合成 arkts launch 配置：AppScope/app.json5 取 bundleName，entry module.json5 取入口 ability。
+function discoverArktsConfig(folder) {
+  if (!folder) return null;
+  const root = folder.uri.fsPath;
+  const app = readJson5(path.join(root, "AppScope", "app.json5"));
+  const bundle = app && app.app && app.app.bundleName;
+  if (!bundle) return null;
+  const mod = readJson5(path.join(root, "entry", "src", "main", "module.json5"));
+  const mm = mod && mod.module;
+  const ability = (mm && Array.isArray(mm.abilities) && mm.abilities[0] && mm.abilities[0].name) || "EntryAbility";
+  const moduleName = (mm && mm.name) || "entry";
+  return { type: "arkts", request: "launch", name: "ArkUI Inspector (auto)", device: bundle, ability, module: moduleName };
 }
 
 function renderInspectorHtml(webview, uiRoot) {
