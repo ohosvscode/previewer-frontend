@@ -1,0 +1,7 @@
+.gitignore
+.vscodeignore
+.vscode-test.mjs
+.vscode-test/**
+.vscode-test.user/**
+test/**
+*.vsix

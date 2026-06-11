@@ -4,7 +4,10 @@
   "description": "在 VSCode 中预览 OpenHarmony 应用（驱动开源 Simulator）。复用同一份 UI，经 relay shim 桥接 postMessage。",
   "version": "0.0.1",
   "publisher": "openharmony-previewer-frontend",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/sanchuanhehe/previewer-frontend.git", "directory": "host/integrations/vscode" },
   "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
   "main": "./extension.js",
   "activationEvents": [],
   "contributes": {
@@ -20,5 +23,18 @@
         "ohPreviewer.bind": { "type": "string", "default": "127.0.0.1:9000", "description": "host gateway 监听地址" }
       }
     }
+  },
+  "scripts": {
+    "bundle-ui": "rm -rf ui && mkdir -p ui && cp -R ../../../ui/index.html ../../../ui/src ui/ 2>/dev/null || (rm -rf ui && mkdir -p ui && cp -R ../../../ui/src ui/)",
+    "vscode:prepublish": "npm run bundle-ui",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "mocha": "^10.7.3"
   }
 }

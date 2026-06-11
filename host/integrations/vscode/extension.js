@@ -30,6 +30,15 @@ function resolveHostBin(context) {
   return null;
 }
 
+// UI 静态资源根：优先打进 vsix 的 ./ui（安装后），否则回退仓库 ui/（F5 扩展开发宿主 / 测试）。
+function resolveUiRoot(context) {
+  const bundled = path.join(context.extensionPath, "ui");
+  if (fs.existsSync(path.join(bundled, "src", "app.js"))) {
+    return vscode.Uri.file(bundled);
+  }
+  return vscode.Uri.file(path.resolve(context.extensionPath, "..", "..", "..", "ui"));
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("ohPreviewer.open", () => openPreview(context))
@@ -56,7 +65,7 @@ async function openPreview(context) {
   host.on("error", (e) => vscode.window.showErrorMessage(`previewer-host 启动失败: ${e.message}`)); // finding #25
 
   // 2. webview
-  const uiRoot = vscode.Uri.file(path.resolve(context.extensionPath, "..", "..", "..", "ui"));
+  const uiRoot = resolveUiRoot(context);
   const panel = vscode.window.createWebviewPanel(
     "ohPreviewer",
     "OpenHarmony Previewer",
