@@ -13,8 +13,14 @@ const refreshBtn = document.getElementById("refresh");
 const shotImg = document.getElementById("shot");
 const shotHint = document.getElementById("shot-hint");
 const hl = document.getElementById("hl");
+const mode3dBtn = document.getElementById("mode3d");
+const wrap2d = document.getElementById("wrap2d");
+const scene3d = document.getElementById("scene3d");
+const stage3d = document.getElementById("stage3d");
 
 let snapW = 0; // 截图像素宽（树 $rect 的坐标系），用于高亮缩放
+let snapH = 0;
+let snapB64 = null; // 截图 base64，3D 顶层贴图用
 let lastRect = null; // 当前选中节点的 rect，供 resize / 图片 load 后重算掩膜
 let deviceTree = null; // 当前完整树根（原始 $type/$rect），供「点截图 → 反查节点」hit-test
 
@@ -89,33 +95,135 @@ const transport = {
   },
 };
 
-const inspector = new InspectorPanel(panelEl, transport, { onSelect: highlightOnShot });
+let selectedId = null; // 当前选中节点 id（2D/3D 联动 + 切模式保持）
+
+// 选中联动：2D 截图高亮 + 3D 标记选中层。
+function onNodeSelect(rect, node) {
+  selectedId = node && node.id != null ? node.id : null;
+  highlightOnShot(rect);
+  mark3dSelected(selectedId);
+}
+
+const inspector = new InspectorPanel(panelEl, transport, { onSelect: onNodeSelect });
 
 refreshBtn.addEventListener("click", () => inspector.fetch());
+
+// ─────────────── 3D 分层视图 ───────────────
+// 每个节点按 $rect 定位、按树深度沿 Z 轴拉开，透视旋转；拖拽旋转、滚轮缩放、点层选中。
+let is3d = false;
+let built3d = false;
+let rotX = 8, rotY = -32, zoom = 1; // 初始视角（近似 DevEco 3D Layers）
+
+function applyStage() {
+  stage3d.style.transform =
+    `translate(-50%, -50%) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${zoom})`;
+}
+
+function build3D() {
+  stage3d.innerHTML = "";
+  if (!deviceTree || !snapW) return;
+  const s = 220 / snapW; // 显示缩放（设备宽 → ~220px）
+  const gap = 16; // 每层深度的 Z 间距
+  stage3d.style.width = snapW * s + "px";
+  stage3d.style.height = snapH * s + "px";
+  const frag = document.createDocumentFragment();
+  const walk = (node, depth) => {
+    const r = parseRect(node.$rect);
+    if (r && r.w > 0 && r.h > 0) {
+      const el = document.createElement("div");
+      el.className = "layer3d" + (depth === 0 ? " layer3d-top" : "");
+      el.style.left = r.x * s + "px";
+      el.style.top = r.y * s + "px";
+      el.style.width = r.w * s + "px";
+      el.style.height = r.h * s + "px";
+      el.style.transform = `translateZ(${depth * gap}px)`;
+      if (node.$ID != null) el.dataset.id = node.$ID;
+      // 顶层贴设备截图，直观对应
+      if (depth === 0 && snapB64) el.style.backgroundImage = `url(data:image/png;base64,${snapB64})`;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (node.$ID != null) inspector.selectById(node.$ID);
+      });
+      frag.appendChild(el);
+    }
+    if (Array.isArray(node.$children)) for (const c of node.$children) walk(c, depth + 1);
+  };
+  walk(deviceTree, 0);
+  stage3d.appendChild(frag);
+  applyStage();
+  built3d = true;
+}
+
+function mark3dSelected(id) {
+  if (!stage3d) return;
+  const prev = stage3d.querySelector(".layer3d.sel");
+  if (prev) prev.classList.remove("sel");
+  if (id == null) return;
+  const el = stage3d.querySelector(`.layer3d[data-id="${CSS.escape(String(id))}"]`);
+  if (el) el.classList.add("sel");
+}
+
+function setMode3d(on) {
+  is3d = on;
+  mode3dBtn.classList.toggle("active", on);
+  wrap2d.style.display = on ? "none" : "";
+  scene3d.style.display = on ? "" : "none";
+  if (on && !built3d) build3D();
+  if (on) mark3dSelected(selectedId); // 保持当前选中
+}
+
+mode3dBtn.addEventListener("click", () => setMode3d(!is3d));
+
+// 拖拽旋转
+let drag = null;
+scene3d.addEventListener("pointerdown", (e) => {
+  drag = { x: e.clientX, y: e.clientY, rx: rotX, ry: rotY };
+  scene3d.classList.add("grabbing");
+  scene3d.setPointerCapture(e.pointerId);
+});
+scene3d.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  rotY = drag.ry + (e.clientX - drag.x) * 0.4;
+  rotX = Math.max(-85, Math.min(85, drag.rx - (e.clientY - drag.y) * 0.4));
+  applyStage();
+});
+const endDrag = () => { drag = null; scene3d.classList.remove("grabbing"); };
+scene3d.addEventListener("pointerup", endDrag);
+scene3d.addEventListener("pointercancel", endDrag);
+// 滚轮缩放
+scene3d.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoom = Math.max(0.2, Math.min(4, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+  applyStage();
+}, { passive: false });
 
 window.addEventListener("message", (e) => {
   const m = e.data;
   if (!m) return;
   if (m.channel === "deviceTree") {
     const meta = m.meta || {};
-    deviceTree = m.tree; // 存树供 hit-test（点截图反查节点）
+    deviceTree = m.tree; // 存树供 hit-test（点截图反查节点）+ 3D 构建
+    built3d = false; // 新树 → 3D 需重建
     const total = countNodes(m.tree);
     setStatus(`✅ windowId=${meta.windowId ?? "?"} · ${total} 节点`, "ok");
     // 设备截图
     hl.style.display = "none";
     if (m.snapshot && m.snapshot.base64) {
       snapW = m.snapshot.width || 0;
+      snapH = m.snapshot.height || 0;
+      snapB64 = m.snapshot.base64;
       shotImg.src = "data:image/png;base64," + m.snapshot.base64;
       shotImg.style.display = "block";
       shotHint.style.display = "none";
     } else {
-      snapW = 0;
+      snapW = 0; snapH = 0; snapB64 = null;
       shotImg.style.display = "none";
       shotHint.style.display = "block";
       shotHint.textContent = "（本次未返回设备截图）";
     }
     // 组件树（复用 InspectorPanel.onEvent 的 inspector 分支，result 为 JSON 字符串）
     inspector.onEvent({ command: "inspector", result: JSON.stringify(m.tree) });
+    if (is3d) build3D(); // 3D 模式下立即重建
   } else if (m.channel === "deviceStatus") {
     setStatus(m.message);
   } else if (m.channel === "deviceError") {

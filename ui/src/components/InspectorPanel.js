@@ -224,7 +224,7 @@ export class InspectorPanel {
       if (this._selectedRow) this._selectedRow.classList.remove("selected");
       row.classList.add("selected");
       this._selectedRow = row;
-      this.onSelect(node.rect);      // 有 rect → 画面高亮定位；无 → 清除
+      this.onSelect(node.rect, node); // 有 rect → 画面高亮定位；node 供 3D 标选中层
       this._showAttrs(node);          // 右侧属性/事件
     });
     return wrap;
@@ -292,7 +292,7 @@ export class InspectorPanel {
     row.classList.add("selected");
     this._selectedRow = row;
     if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-    this.onSelect(target.rect);
+    this.onSelect(target.rect, target);
     this._showAttrs(target);
     return true;
   }

@@ -378,6 +378,7 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--panel-bg); position: sticky; top: 0; z-index: 2; }
     .ai-btn { background: var(--btn-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
     .ai-btn:hover { border-color: var(--accent); }
+    .ai-btn.active { background: var(--accent); color: var(--vscode-button-foreground, #fff); border-color: var(--accent); }
     .ai-status { color: var(--muted); font-size: 12px; }
     .ai-status.ok { color: var(--good); }
     .ai-status.error { color: var(--bad); }
@@ -389,6 +390,14 @@ function renderInspectorHtml(webview, uiRoot) {
     #shot-hint { color: var(--muted); font-size: 11px; padding: 30px 10px; text-align: center; }
     #hl { position: absolute; display: none; pointer-events: none; border: 2px solid var(--accent, #4ea1ff); background: rgba(78,161,255,.18); box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 3; }
     #panel { flex: 1 1 auto; min-width: 0; padding: 8px 14px 24px; }
+    /* 3D 分层视图：每个节点按 $rect 定位、按树深度沿 Z 轴拉开，透视旋转，拖拽可转。 */
+    .ai-3d { perspective: 2000px; width: 560px; height: 72vh; overflow: hidden; cursor: grab; user-select: none; }
+    .ai-3d.grabbing { cursor: grabbing; }
+    .ai-3d-stage { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
+    .layer3d { position: absolute; box-sizing: border-box; border: 1px solid rgba(120,170,255,.45); background: rgba(120,170,255,.06); transition: border-color .1s, background .1s; }
+    .layer3d:hover { border-color: var(--accent); }
+    .layer3d.sel { border-color: var(--accent); background: rgba(78,161,255,.25); box-shadow: 0 0 0 1px var(--accent); }
+    .layer3d-top { background-size: cover; background-position: center; border-color: rgba(120,170,255,.7); }
     /* 独立视图：树/属性面板放开高度限制 */
     .inspector-tree { max-height: none; }
     .insp-tab-body { max-height: none; }
@@ -397,15 +406,17 @@ function renderInspectorHtml(webview, uiRoot) {
 <body>
   <div class="ai-bar">
     <button id="refresh" class="ai-btn">⟳ 刷新</button>
+    <button id="mode3d" class="ai-btn" title="2D 截图 / 3D 分层视图切换">🧊 3D</button>
     <span id="status" class="ai-status"></span>
   </div>
   <div class="ai-body">
     <div class="ai-screen">
-      <div class="ai-screen-wrap">
+      <div class="ai-screen-wrap" id="wrap2d">
         <img id="shot" alt="设备截图" style="display:none" />
         <div id="shot-hint">（抓取后显示设备截图<br/>点组件树节点 → 此处高亮定位）</div>
         <div id="hl"></div>
       </div>
+      <div class="ai-3d" id="scene3d" style="display:none"><div class="ai-3d-stage" id="stage3d"></div></div>
     </div>
     <div id="panel"></div>
   </div>
