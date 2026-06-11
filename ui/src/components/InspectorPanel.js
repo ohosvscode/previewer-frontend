@@ -262,6 +262,41 @@ export class InspectorPanel {
     apply(this._roots);
   }
 
+  /**
+   * 按节点 $ID 编程选中（供「点设备截图 → 反向选中组件」）：
+   * 找到节点及其祖先链 → 展开祖先 → 高亮行 + 滚动可见 + onSelect(rect) + 属性面板。
+   * 返回是否命中。
+   */
+  selectById(id) {
+    const want = String(id);
+    const path = [];
+    const dfs = (nodes, anc) => {
+      for (const n of nodes) {
+        if (n.id != null && String(n.id) === want) {
+          path.push(...anc, n);
+          return true;
+        }
+        if (n.children && n.children.length && dfs(n.children, anc.concat(n))) return true;
+      }
+      return false;
+    };
+    if (!dfs(this._roots, [])) return false;
+    const target = path[path.length - 1];
+    // 自顶向下展开祖先（_setOpen 会惰性构建子行，故必须按序）
+    for (let i = 0; i < path.length - 1; i++) {
+      if (path[i]._setOpen) path[i]._setOpen(true);
+    }
+    const row = target._wrap && target._wrap.querySelector(".tree-row");
+    if (!row) return false;
+    if (this._selectedRow) this._selectedRow.classList.remove("selected");
+    row.classList.add("selected");
+    this._selectedRow = row;
+    if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+    this.onSelect(target.rect);
+    this._showAttrs(target);
+    return true;
+  }
+
   // ─────────────── 属性 / 事件面板 ───────────────
 
   _showAttrs(node) {

@@ -320,7 +320,7 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-body { display: flex; align-items: flex-start; gap: 0; }
     .ai-screen { flex: 0 0 auto; padding: 12px 14px; position: sticky; top: 49px; }
     .ai-screen-wrap { position: relative; display: inline-block; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
-    #shot { display: block; max-height: 70vh; width: auto; }
+    #shot { display: block; max-height: 70vh; width: auto; cursor: crosshair; }
     #shot-hint { color: var(--muted); font-size: 11px; padding: 30px 10px; text-align: center; }
     #hl { position: absolute; display: none; pointer-events: none; border: 2px solid var(--accent, #4ea1ff); background: rgba(78,161,255,.18); box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 3; }
     #panel { flex: 1 1 auto; min-width: 0; padding: 8px 14px 24px; }
