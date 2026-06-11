@@ -82,6 +82,12 @@ impl CommandBridge {
         self.events.subscribe()
     }
 
+    /// 注入一条事件到广播（与 Simulator 上行同流，gateway 一并转发给 UI）。
+    /// 用于 host 侧合成的诊断事件，如应用未捕获异常（见 session 日志解析）。
+    pub fn emit(&self, ev: Event) {
+        let _ = self.events.send(ev);
+    }
+
     /// 下发一条命令（JSON 文本 + 单个 NUL 结尾）。M2 交互用。
     pub async fn send(&self, json: &serde_json::Value) -> Result<()> {
         let mut buf = serde_json::to_vec(json)?;

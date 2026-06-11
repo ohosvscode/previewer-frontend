@@ -79,10 +79,30 @@ transport.onEvent((ev) => {
   if (!ev) return;
   if (ev.type === "hello") { dead = false; buildUI(ev); return; }
   if (ev.type === "simulatorExited") { dead = true; setStatus("⚠ Simulator 已退出", "error"); return; }
+  // 应用未捕获异常（host 解析 Simulator 日志合成）→ 显著提示，否则只表现为白屏/空树
+  if (ev.type === "appError") { showAppError(ev); return; }
   if (inspector && inspector.onEvent(ev)) return;
   if (ev.MessageType) console.log("[event]", ev.MessageType, ev.args ?? "");
   else if (ev.command) console.log("[result]", ev.command, ev.result ?? "");
 });
+
+let appCrashed = false;
+function showAppError(ev) {
+  appCrashed = true;
+  const msg = ev.message || "未捕获异常";
+  setStatus("⚠ 应用异常：" + msg, "error");
+  console.error("[appError]", msg, ev.stack || []);
+  // 在侧栏/状态下方挂一个可见的错误块（含调用栈），并标注「画面/组件树为空多因此异常」
+  let box = document.getElementById("app-error");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "app-error";
+    box.className = "app-error";
+    (panelEl || statusEl.parentElement).prepend(box);
+  }
+  const stack = (ev.stack || []).map((s) => "  at " + s).join("\n");
+  box.textContent = "⚠ 应用未捕获异常（画面/组件树为空多因此）：\n" + msg + (stack ? "\n" + stack : "");
+}
 
 transport.onState((s) => {
   if (s === "open") { connected = true; if (!dead) setStatus("已连接 · 等待画面…", "live"); }
@@ -90,9 +110,9 @@ transport.onState((s) => {
   else if (s === "error") { connected = false; if (!dead) setStatus("连接错误，重连中…", "error"); }
 });
 
-// 状态文案：仅在连接中、有帧且 Simulator 存活时显示 LIVE（finding #5）
+// 状态文案：仅在连接中、有帧且 Simulator 存活且应用未崩时显示 LIVE（finding #5）
 setInterval(() => {
-  if (connected && !dead && screen.frameCount > 0) {
+  if (connected && !dead && !appCrashed && screen.frameCount > 0) {
     setStatus(`● LIVE · ${fps} fps · 累计 ${screen.frameCount} 帧`, "live");
   }
   fps = 0;

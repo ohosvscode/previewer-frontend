@@ -113,6 +113,19 @@ input.ctl-input[type="range"] { width: 120px; }
 input.ctl-input[type="number"] { width: 90px; background: #1c1d20; color: var(--text); border: 1px solid #3c3f46; border-radius: 4px; padding: 3px 5px; }
 select.ctl-input { background: #1c1d20; color: var(--text); border: 1px solid #3c3f46; border-radius: 4px; padding: 3px; }
 
+/* 应用未捕获异常提示（host 解析 Simulator 日志合成 appError） */
+.app-error {
+  background: #2a1416;
+  border: 1px solid #7a2e30;
+  color: #f0a8a8;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font: 11px/1.5 "SF Mono", Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .inspector-note { color: var(--muted); font-size: 11px; margin: 4px 0 6px; }
 .inspector-tree {
   background: #16171a;
