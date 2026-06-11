@@ -46,5 +46,28 @@ jobs:
       - run: npm ci
       - name: 语法检查
         run: node -c extension.js && node -c discover.js
-      - name: 单元测试（discover 自动发现/选择，纯函数）
+      - name: 单元测试（discover 自动发现/选择 + inspector 组件树，纯函数）
         run: npm run test:unit
+
+  sdk-integration:
+    name: SDK 集成（装真实 SDK，验证 previewer 工具自动发现）
+    runs-on: ubuntu-latest
+    # 开源 SDK 是否随附 previewer Simulator 待 CI 首次确认，故先容错（不阻塞合并）。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 OpenHarmony SDK
+        id: sdk
+        uses: openharmony-rs/setup-ohos-sdk@v1.0.0
+        with:
+          version: '5.0.0'
+          components: all
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 自动发现 previewer 工具（findPreviewerDir 对 CI 装的 SDK）
+        working-directory: host/integrations/vscode
+        env:
+          OHOS_SDK_HOME: ${{ steps.sdk.outputs.sdk-path }}
+        run: |
+          node -e "const d=require('./discover');const p=d.findPreviewerDir(process.env.OHOS_SDK_HOME||'');if(p){console.log('✓ previewer 目录:',p)}else{console.error('✗ 该 SDK 未发现 previewer 工具');process.exit(1)}"
