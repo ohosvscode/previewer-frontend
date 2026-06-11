@@ -23,6 +23,10 @@
       {
         "command": "ohPreviewer.open",
         "title": "OpenHarmony: 打开预览"
+      },
+      {
+        "command": "ohPreviewer.arkuiInspector",
+        "title": "OpenHarmony: ArkUI 组件树检查器（真机）"
       }
     ],
     "configuration": {

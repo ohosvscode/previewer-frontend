@@ -56,6 +56,7 @@ function resolveUiRoot(context) {
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("ohPreviewer.open", () => openPreview(context)),
+    vscode.commands.registerCommand("ohPreviewer.arkuiInspector", () => openArkuiInspector(context)),
     renderedEmitter
   );
   // 暴露给集成测试：观测 webview 是否真的渲染了帧（画面环 E2E）。
@@ -240,6 +241,93 @@ function renderHtml(webview, uiRoot) {
     </div>
   </div>
   <script type="module" src="${appUri}"></script>
+</body>
+</html>`;
+}
+
+// ───────────────── 独立「ArkUI 组件树检查器（真机）」 ─────────────────
+// 数据源 = 活跃的 arkts-dap 真机调试会话：经 VSCode debug API 的 customRequest 取完整树。
+// 两扩展不直连，只在 vscode.debug.activeDebugSession 上碰头（软依赖：无会话则优雅提示）。
+async function openArkuiInspector(context) {
+  const uiRoot = resolveUiRoot(context);
+  const panel = vscode.window.createWebviewPanel(
+    "ohArkuiInspector",
+    "ArkUI 组件树检查器（真机）",
+    vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [uiRoot] }
+  );
+  panel.webview.html = renderInspectorHtml(panel.webview, uiRoot);
+
+  panel.webview.onDidReceiveMessage(async (m) => {
+    if (!m || m.channel !== "fetchDeviceTree") return;
+    // 取活跃调试会话——必须是 arkts-dap（type==="arkts"）；否则提示如何进入真机调试。
+    const sess = vscode.debug.activeDebugSession;
+    if (!sess || sess.type !== "arkts") {
+      panel.webview.postMessage({
+        channel: "deviceError",
+        message: "无活跃的 arkts-dap 真机调试会话。请先用 arkts-dap 启动真机调试（--device <bundle> --launch），再回到此视图刷新。",
+      });
+      return;
+    }
+    try {
+      // arkts-dap 自定义请求：未传 windowId 时其内部经 hidumper 自动发现焦点窗口。
+      const res = await sess.customRequest("getArkUITree", {});
+      const norm = res && res.tree ? res.tree : null; // {windowId,vsyncId,processId,tree}
+      const content = norm && norm.tree ? norm.tree : null; // 组件树根（$type:"root"）
+      if (!content) {
+        panel.webview.postMessage({ channel: "deviceError", message: "getArkUITree 未返回树（设备无响应/窗口不对/app 未渲染）" });
+        return;
+      }
+      panel.webview.postMessage({
+        channel: "deviceTree",
+        tree: content,
+        meta: { windowId: norm.windowId, vsyncId: norm.vsyncId, processId: norm.processId },
+      });
+    } catch (e) {
+      panel.webview.postMessage({ channel: "deviceError", message: "getArkUITree 失败：" + (e && e.message ? e.message : String(e)) });
+    }
+  });
+}
+
+function renderInspectorHtml(webview, uiRoot) {
+  const uri = (...p) => webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, ...p));
+  const entryUri = uri("src", "arkui-inspector.js");
+  const styleUri = uri("src", "style.css");
+  const csp = [
+    `default-src 'none'`,
+    `script-src ${webview.cspSource}`,
+    `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `img-src ${webview.cspSource} blob: data:`,
+    `connect-src 'none'`,
+  ].join("; ");
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="${csp}" />
+  <link rel="stylesheet" href="${styleUri}" />
+  <title>ArkUI 组件树检查器</title>
+  <style>
+    body { margin: 0; }
+    .ai-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #000; background: var(--panel-bg); position: sticky; top: 0; z-index: 2; }
+    .ai-btn { background: #32343a; color: var(--text); border: 1px solid #3c3f46; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+    .ai-btn:hover { border-color: var(--accent); }
+    .ai-status { color: var(--muted); font-size: 12px; }
+    .ai-status.ok { color: #4ec98a; }
+    .ai-status.error { color: #e26d6d; }
+    #panel { padding: 8px 14px 24px; }
+    /* 独立视图：树/属性面板放开高度限制 */
+    .inspector-tree { max-height: none; }
+    .insp-tab-body { max-height: none; }
+  </style>
+</head>
+<body>
+  <div class="ai-bar">
+    <button id="refresh" class="ai-btn">⟳ 刷新</button>
+    <span id="status" class="ai-status"></span>
+  </div>
+  <div id="panel"></div>
+  <script type="module" src="${entryUri}"></script>
 </body>
 </html>`;
 }
