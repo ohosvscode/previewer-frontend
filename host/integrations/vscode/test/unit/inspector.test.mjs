@@ -27,10 +27,10 @@ describe('toNode / rootsOf（兼容实时树与默认目录）', () => {
     const roots = rootsOf(tree);
     assert.strictEqual(roots.length, 1);
     const root = roots[0];
-    assert.strictEqual(root.label, 'Column #1');
+    assert.strictEqual(root.label, 'Column(1)');
     assert.deepStrictEqual(root.rect, { x: 0, y: 0, w: 1080, h: 2340 });
     assert.strictEqual(root.children.length, 2);
-    assert.strictEqual(root.children[0].label, 'Text #2');
+    assert.strictEqual(root.children[0].label, 'Text(2)');
     assert.deepStrictEqual(root.children[0].rect, { x: 40, y: 100, w: 260, h: 60 });
     assert.strictEqual(root.children[1].rect, null, '无 $rect → 不可定位');
   });

@@ -134,8 +134,70 @@ select.ctl-input { background: #1c1d20; color: var(--text); border: 1px solid #3
   padding: 6px;
   font: 11px/1.5 "SF Mono", Menlo, monospace;
   color: #c8cdd6;
-  max-height: 360px;
+  max-height: 300px;
   overflow: auto;
+}
+
+/* DevEco 式 inspector：工具栏 + 搜索 + 属性面板 */
+.insp-head { display: flex; align-items: center; justify-content: space-between; }
+.insp-tools { display: flex; gap: 4px; }
+.insp-tbtn {
+  background: #2a2c31; color: var(--text); border: 1px solid #3c3f46;
+  border-radius: 4px; width: 22px; height: 20px; line-height: 1; cursor: pointer; font-size: 12px;
+}
+.insp-tbtn:hover { border-color: var(--accent); }
+.insp-search {
+  width: 100%; margin: 4px 0 6px; padding: 4px 7px;
+  background: #1c1d20; color: var(--text); border: 1px solid #3c3f46; border-radius: 5px; font-size: 12px;
+}
+.tree-kids { display: block; }
+
+.insp-attrs {
+  margin-top: 10px; border-top: 1px solid #2c2e33; padding-top: 8px;
+}
+.insp-attr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.insp-attr-title { color: #7fb6ff; font-weight: 600; font-size: 13px; }
+.insp-attr-pos { color: var(--muted); font: 10px/1.4 "SF Mono", Menlo, monospace; }
+.insp-tabs { display: flex; gap: 0; margin-bottom: 6px; }
+.insp-tab {
+  background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent;
+  padding: 4px 12px; cursor: pointer; font-size: 12px;
+}
+.insp-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.insp-tab-body { max-height: 340px; overflow: auto; }
+.insp-empty { color: var(--muted); font-size: 11px; padding: 10px 2px; }
+
+.insp-sect { margin-bottom: 8px; }
+.insp-sect-h {
+  background: #2a2c31; color: #b8bdc6; font-size: 11px; font-weight: 600;
+  padding: 3px 8px; border-radius: 4px; margin-bottom: 2px;
+}
+.insp-sect-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 8px; }
+.insp-k { color: var(--muted); font-size: 11px; }
+.insp-v {
+  color: #cdd0d6; font: 11px/1.4 "SF Mono", Menlo, monospace;
+  text-align: right; word-break: break-all; max-width: 60%;
+}
+
+/* Spacing 同心盒模型 */
+.sp-box {
+  position: relative; border: 1px dashed #4a4d55; border-radius: 4px;
+  padding: 16px 30px; margin: 0; text-align: center;
+}
+.sp-margin { background: #20262e; }
+.sp-border { background: #262b22; }
+.sp-padding { background: #2a2620; }
+.sp-tag {
+  position: absolute; top: 1px; left: 4px; font-size: 9px; color: var(--muted);
+}
+.sp-e { position: absolute; font: 9px/1 "SF Mono", Menlo, monospace; color: #cdd0d6; }
+.sp-t { top: 3px; left: 50%; transform: translateX(-50%); }
+.sp-b { bottom: 3px; left: 50%; transform: translateX(-50%); }
+.sp-l { left: 4px; top: 50%; transform: translateY(-50%); }
+.sp-r { right: 4px; top: 50%; transform: translateY(-50%); }
+.sp-content {
+  background: #1b3a5b; border: 1px solid #2f6aa8; border-radius: 3px;
+  padding: 10px 6px; color: #cfe3ff; font: 10px/1.2 "SF Mono", Menlo, monospace;
 }
 .tree-row {
   display: flex;
