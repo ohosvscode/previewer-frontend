@@ -27,6 +27,9 @@ export class VsCodeTransport {
         const buf = m.bytes instanceof ArrayBuffer ? m.bytes : new Uint8Array(m.bytes).buffer;
         const blob = new Blob([buf], { type: "image/jpeg" });
         this._frameCbs.forEach((cb) => cb(blob));
+        // 回执：帧已交付并绘制（onFrame 回调含 screen.draw）。扩展据此可观测「画面已渲染」（集成测试用）。
+        this._rendered = (this._rendered || 0) + 1;
+        this.vscode.postMessage({ channel: "rendered", count: this._rendered });
       } else if (m.channel === "event") {
         this._eventCbs.forEach((cb) => cb(m.payload));
       } else if (m.channel === "state") {

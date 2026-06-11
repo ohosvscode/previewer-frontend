@@ -11,6 +11,10 @@ const cp = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
+// 「画面已渲染」观测：webview 每画一帧回发 {channel:"rendered"}，这里计数 + 广播，供集成测试断言整条画面环。
+let renderedCount = 0;
+const renderedEmitter = new vscode.EventEmitter();
+
 /** 取 Node 全局或 ws 包的 WebSocket 实现。*/
 function getWebSocketCtor() {
   if (typeof globalThis.WebSocket === "function") return globalThis.WebSocket; // Node 22+
@@ -41,8 +45,15 @@ function resolveUiRoot(context) {
 
 function activate(context) {
   context.subscriptions.push(
-    vscode.commands.registerCommand("ohPreviewer.open", () => openPreview(context))
+    vscode.commands.registerCommand("ohPreviewer.open", () => openPreview(context)),
+    renderedEmitter
   );
+  // 暴露给集成测试：观测 webview 是否真的渲染了帧（画面环 E2E）。
+  return {
+    onRendered: renderedEmitter.event,
+    lastRenderedCount: () => renderedCount,
+    resetRendered: () => { renderedCount = 0; },
+  };
 }
 
 async function openPreview(context) {
@@ -128,6 +139,10 @@ async function openPreview(context) {
         break;
       case "close": // finding #24
         try { ws && ws.close(); } catch {}
+        break;
+      case "rendered": // webview 画完一帧的回执（画面环可观测）
+        renderedCount = typeof m.count === "number" ? m.count : renderedCount + 1;
+        renderedEmitter.fire(renderedCount);
         break;
     }
   });
