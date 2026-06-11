@@ -298,8 +298,11 @@ window.addEventListener("message", (e) => {
     // 逐组件渲染图到达 → 建 id→blobUrl 映射并重建 3D。
     if (perCompUrls.length) { perCompUrls.forEach((u) => URL.revokeObjectURL(u)); perCompUrls = []; }
     perComp = new Map();
+    let skippedEmpty = 0;
     for (const L of m.layers || []) {
       if (L.id == null || !L.base64) continue;
+      // 跳过空/极小渲染图（空容器的全透明 PNG，base64 很短）——它们只会变成幽灵框/投影。
+      if (L.base64.length < 600) { skippedEmpty++; continue; }
       const url = URL.createObjectURL(b64ToBlob(L.base64, "image/png"));
       perCompUrls.push(url);
       perComp.set(String(L.id), url);

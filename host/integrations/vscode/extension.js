@@ -413,7 +413,7 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-3d.grabbing { cursor: grabbing; }
     .ai-3d-stage { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
     .layer3d { position: absolute; box-sizing: border-box; border: 1px solid rgba(120,170,255,.4); background: rgba(120,170,255,.06); opacity: .72; transition: border-color .1s; }
-    .layer3d.solo { opacity: 1; border-color: rgba(120,170,255,.18); background: transparent; } /* 逐组件图：内容不透明、空白处透出，不再黑卡片 */
+    .layer3d.solo { opacity: 1; border-color: transparent; background: transparent; } /* 逐组件图：只显图像内容，空白处无边框不透出 → 无幽灵框/投影 */
     .layer3d:hover { border-color: var(--accent); }
     .layer3d.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); opacity: 1; }
     .layer3d-top { border-color: rgba(120,170,255,.5); }
