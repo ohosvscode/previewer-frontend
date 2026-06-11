@@ -17,6 +17,9 @@ const mode3dBtn = document.getElementById("mode3d");
 const wrap2d = document.getElementById("wrap2d");
 const scene3d = document.getElementById("scene3d");
 const stage3d = document.getElementById("stage3d");
+const gapCtl = document.getElementById("gapctl");
+const gapSlider = document.getElementById("gap3d");
+let gap3d = 30; // 层间距（Z），可由滑块调
 
 let snapW = 0; // 截图像素宽（树 $rect 的坐标系），用于高亮缩放
 let snapH = 0;
@@ -134,7 +137,7 @@ function build3D() {
   stage3d.innerHTML = "";
   if (!deviceTree || !snapW) return;
   const s = 220 / snapW; // 显示缩放（设备宽 → ~220px）
-  const gap = 30; // 每层深度的 Z 间距
+  const gap = gap3d; // 每层深度的 Z 间距（滑块可调）
   const hasPerComp = perComp && perComp.size > 0;
   const fullArea = snapW * snapH;
   stage3d.style.width = snapW * s + "px";
@@ -149,7 +152,7 @@ function build3D() {
       // 逐组件模式：只画有自身渲染图的层（跳过几百个空容器线框，去杂乱）。
       const skipNoImg = hasPerComp && !hasImg;
       // 跳过非根的近全屏层（Stack/Swiper/Navigation 各自渲染整页 → 重影），只留根截图 + 更小的具体组件。
-      const skipFull = depth > 0 && r.w * r.h >= fullArea * 0.9;
+      const skipFull = depth > 0 && r.w * r.h >= fullArea * 0.78;
       // rect 去重（取整到 1px）：同一位置同尺寸只保留首个（最外层）。
       const key = `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`;
       const dup = seenRect.has(key);
@@ -174,11 +177,7 @@ function build3D() {
           el.style.backgroundPosition = `${-r.x * s}px ${-r.y * s}px`;
           el.style.backgroundRepeat = "no-repeat";
         }
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (node.$ID != null) inspector.selectById(node.$ID);
-        });
-        frag.appendChild(el);
+        frag.appendChild(el); // 点击选中由 scene3d 的 pointerup（区分拖拽）统一处理
       }
     }
     if (Array.isArray(node.$children)) for (const c of node.$children) walk(c, depth + 1);
@@ -203,6 +202,7 @@ function setMode3d(on) {
   mode3dBtn.classList.toggle("active", on);
   wrap2d.style.display = on ? "none" : "";
   scene3d.style.display = on ? "" : "none";
+  if (gapCtl) gapCtl.style.display = on ? "" : "none";
   if (on && !built3d) build3D();
   if (on) mark3dSelected(selectedId); // 保持当前选中
   if (on && !layers3dFetched && deviceTree) requestLayers3d(); // 进 3D 自动取逐组件图
@@ -217,22 +217,44 @@ function requestLayers3d() {
 
 mode3dBtn.addEventListener("click", () => setMode3d(!is3d));
 
-// 拖拽旋转
+// 层间距滑块 → 改 gap 并重建 3D（仅在已构建时）。
+if (gapSlider) {
+  gapSlider.addEventListener("input", () => {
+    gap3d = Number(gapSlider.value) || 0;
+    if (is3d && built3d) build3D();
+  });
+}
+
+// 拖拽旋转 + 点击选中（区分：移动超阈值=拖拽旋转；否则=点击 → 取指针下的层选中）。
 let drag = null;
+let dragMoved = false;
 scene3d.addEventListener("pointerdown", (e) => {
   drag = { x: e.clientX, y: e.clientY, rx: rotX, ry: rotY };
-  scene3d.classList.add("grabbing");
+  dragMoved = false;
   scene3d.setPointerCapture(e.pointerId);
 });
 scene3d.addEventListener("pointermove", (e) => {
   if (!drag) return;
+  if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4) {
+    if (!dragMoved) scene3d.classList.add("grabbing");
+    dragMoved = true;
+  }
   rotY = drag.ry + (e.clientX - drag.x) * 0.4;
   rotX = Math.max(-85, Math.min(85, drag.rx - (e.clientY - drag.y) * 0.4));
   applyStage();
 });
-const endDrag = () => { drag = null; scene3d.classList.remove("grabbing"); };
+const endDrag = (e) => {
+  if (drag && !dragMoved) {
+    // 当作点击：取指针下最上层的 .layer3d → 选中对应节点
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const layer = el && el.closest ? el.closest(".layer3d") : null;
+    if (layer && layer.dataset.id != null) inspector.selectById(layer.dataset.id);
+  }
+  drag = null;
+  scene3d.classList.remove("grabbing");
+};
 scene3d.addEventListener("pointerup", endDrag);
-scene3d.addEventListener("pointercancel", endDrag);
+scene3d.addEventListener("pointercancel", () => { drag = null; scene3d.classList.remove("grabbing"); });
 // 滚轮缩放
 scene3d.addEventListener("wheel", (e) => {
   e.preventDefault();

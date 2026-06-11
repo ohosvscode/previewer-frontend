@@ -398,6 +398,8 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-status { color: var(--muted); font-size: 12px; }
     .ai-status.ok { color: var(--good); }
     .ai-status.error { color: var(--bad); }
+    .ai-gapctl { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+    .ai-range { accent-color: var(--accent); width: 120px; }
     /* DevEco 式三栏：设备截图（左） | 组件树 + 属性（右）。点节点 → 截图上高亮。 */
     .ai-body { display: flex; align-items: flex-start; gap: 0; }
     .ai-screen { flex: 0 0 auto; padding: 12px 14px; position: sticky; top: 49px; }
@@ -411,10 +413,10 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-3d.grabbing { cursor: grabbing; }
     .ai-3d-stage { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
     .layer3d { position: absolute; box-sizing: border-box; border: 1px solid rgba(120,170,255,.4); background: rgba(120,170,255,.06); opacity: .72; transition: border-color .1s; }
-    .layer3d.solo { opacity: 1; border-color: rgba(120,170,255,.25); background: #0a0e16; } /* 逐组件图：不透明，消混叠重影 */
-    .layer3d:hover { border-color: var(--accent); opacity: 1; }
+    .layer3d.solo { opacity: 1; border-color: rgba(120,170,255,.18); background: transparent; } /* 逐组件图：内容不透明、空白处透出，不再黑卡片 */
+    .layer3d:hover { border-color: var(--accent); }
     .layer3d.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); opacity: 1; }
-    .layer3d-top { border-color: rgba(120,170,255,.7); }
+    .layer3d-top { border-color: rgba(120,170,255,.5); }
     /* 独立视图：树/属性面板放开高度限制 */
     .inspector-tree { max-height: none; }
     .insp-tab-body { max-height: none; }
@@ -424,6 +426,7 @@ function renderInspectorHtml(webview, uiRoot) {
   <div class="ai-bar">
     <button id="refresh" class="ai-btn">⟳ 刷新</button>
     <button id="mode3d" class="ai-btn" title="2D 截图 / 3D 分层视图切换">🧊 3D</button>
+    <span id="gapctl" class="ai-gapctl" style="display:none">层间距 <input id="gap3d" class="ai-range" type="range" min="0" max="64" value="30" /></span>
     <span id="status" class="ai-status"></span>
   </div>
   <div class="ai-body">
