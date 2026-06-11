@@ -20,7 +20,7 @@
         "ohPreviewer.hostBin": { "type": "string", "default": "", "description": "previewer-host 可执行文件路径（留空则按平台在 ../../target 下查找）" },
         "ohPreviewer.sim": { "type": "string", "default": "", "description": "Simulator 路径（透传给 host --sim）" },
         "ohPreviewer.app": { "type": "string", "default": "", "description": "已编译 liteWearable 应用目录（透传给 host --app）" },
-        "ohPreviewer.bind": { "type": "string", "default": "127.0.0.1:9000", "description": "host gateway 监听地址" }
+        "ohPreviewer.bind": { "type": "string", "default": "", "description": "host gateway 监听地址。留空则用 127.0.0.1:0 由 OS 动态分配端口（推荐，避免端口冲突/多开）；可填 127.0.0.1:9000 固定。" }
       }
     }
   },

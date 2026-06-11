@@ -25,6 +25,12 @@ pub async fn serve(session: Arc<Session>, ui_dir: PathBuf, bind_addr: &str) -> R
     let listener = tokio::net::TcpListener::bind(bind_addr)
         .await
         .with_context(|| format!("bind UI gateway 失败: {bind_addr}"))?;
+    // 用**实际**绑定地址（而非输入串）：支持 `--bind 127.0.0.1:0` 让 OS 动态分配，
+    // 调用方（如 VSCode 扩展）可解析此行拿到真实端口再连 /ws。
+    let actual = listener
+        .local_addr()
+        .map(|a| a.to_string())
+        .unwrap_or_else(|_| bind_addr.to_string());
     // 安全提示：UI gateway 无鉴权，非回环地址会把预览与命令上行暴露给网络（finding #21）
     if let Ok(addr) = listener.local_addr() {
         if !addr.ip().is_loopback() {
@@ -35,10 +41,10 @@ pub async fn serve(session: Arc<Session>, ui_dir: PathBuf, bind_addr: &str) -> R
     }
     println!(
         "[gateway] UI 服务: http://{}  （静态目录 {}）",
-        bind_addr,
+        actual,
         ui_dir.display()
     );
-    println!("[gateway] 浏览器打开 http://{bind_addr} 即可预览");
+    println!("[gateway] 浏览器打开 http://{actual} 即可预览");
     axum::serve(listener, app).await.context("axum serve 失败")?;
     Ok(())
 }

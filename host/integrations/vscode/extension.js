@@ -58,19 +58,33 @@ function activate(context) {
 
 async function openPreview(context) {
   const cfg = vscode.workspace.getConfiguration("ohPreviewer");
-  const bind = cfg.get("bind") || "127.0.0.1:9000";
+  // bind 默认空 → 用 127.0.0.1:0 让 OS 动态分配端口（避免写死 9000 被占/多开冲突）；
+  // 真实端口从 host 打印的 "[gateway] UI 服务: http://<addr>" 解析（见 onOut）。
+  const bind = cfg.get("bind") || "127.0.0.1:0";
   const hostBin = resolveHostBin(context);
   if (!hostBin) {
     vscode.window.showErrorMessage("未找到 previewer-host，请先 `cargo build` 或配置 ohPreviewer.hostBin");
     return;
   }
 
+  // gatewayAddr：host 实际监听地址（动态端口时由 stdout 解析得到）；webviewReady：UI 已就绪。
+  // 两者齐备才连 relay WS（避免帧/hello 抢跑，且动态端口需先知道真实端口）。
+  let gatewayAddr = null;
+  let webviewReady = false;
+
   // 1. spawn host
   const args = ["--bind", bind];
   if (cfg.get("sim")) args.push("--sim", cfg.get("sim"));
   if (cfg.get("app")) args.push("--app", cfg.get("app"));
   const host = cp.spawn(hostBin, args, { stdio: "pipe" });
-  const onOut = (d) => console.log("[host]", d.toString());
+  const onOut = (d) => {
+    const s = d.toString();
+    console.log("[host]", s);
+    if (!gatewayAddr) {
+      const mm = s.match(/UI 服务: http:\/\/(\d{1,3}(?:\.\d{1,3}){3}:\d+)/);
+      if (mm) { gatewayAddr = mm[1]; maybeConnect(); }
+    }
+  };
   host.stdout.on("data", onOut);
   host.stderr.on("data", onOut);
   host.on("error", (e) => vscode.window.showErrorMessage(`previewer-host 启动失败: ${e.message}`)); // finding #25
@@ -92,16 +106,20 @@ async function openPreview(context) {
     vscode.window.showErrorMessage("缺少 WebSocket（需 VSCode 内置 Node 22+ 或在扩展内打包 'ws'）");
     return;
   }
-  const url = `ws://${bind}/ws`;
   let ws = null;
   let tries = 0;
   let disposed = false;
 
+  // 仅当 webview 就绪 且 已知 host 真实端口时才连（动态端口下端口由 host 输出解析）。
+  const maybeConnect = () => {
+    if (!disposed && webviewReady && gatewayAddr && !ws) connect();
+  };
+
   // connect() 是 handler 的唯一来源；自行决定“重试 vs 报错”（finding #23）
   const connect = () => {
-    if (disposed) return;
+    if (disposed || !gatewayAddr) return;
     if (ws) { try { ws.onclose = null; ws.close(); } catch {} ws = null; }
-    const sock = new WS(url);
+    const sock = new WS(`ws://${gatewayAddr}/ws`);
     sock.binaryType = "arraybuffer";
     ws = sock;
     sock.onopen = () => { tries = 0; panel.webview.postMessage({ channel: "state", state: "open" }); };
@@ -128,11 +146,12 @@ async function openPreview(context) {
     if (!m) return;
     switch (m.channel) {
       case "ready":
-        if (!ws) connect();
+        webviewReady = true;
+        maybeConnect(); // 端口已知则连，否则等 host 输出解析到端口（onOut）后连
         break;
       case "reconnect": // finding #6：UI ⟲ 重连
         tries = 0;
-        connect();
+        if (gatewayAddr) connect();
         break;
       case "command":
         if (ws && ws.readyState === 1) ws.send(JSON.stringify(m.msg));

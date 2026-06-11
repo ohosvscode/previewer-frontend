@@ -101,7 +101,7 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
     assert.ok(tabs.some((t) => /Previewer/i.test(t.label)), '应创建 Previewer webview 面板');
   });
 
-  it('webview 真渲染了画面（完整画面环：Simulator→host→扩展→webview→canvas）', async () => {
+  it('webview 真渲染了画面（动态端口；完整画面环 Simulator→host→扩展→webview→canvas）', async () => {
     const api = await vscode.extensions.getExtension(EXT_ID).activate();
     assert.ok(api && typeof api.lastRenderedCount === 'function', '扩展应导出 lastRenderedCount（测试观测口）');
     api.resetRendered();
@@ -109,7 +109,7 @@ describe('OpenHarmony Previewer E2E（gated）', function () {
     const cfg = vscode.workspace.getConfiguration('ohPreviewer');
     const G = vscode.ConfigurationTarget.Global;
     await cfg.update('hostBin', hostBin(), G);
-    await cfg.update('bind', BIND, G);
+    await cfg.update('bind', '', G); // 空 → 动态端口（OS 分配）；扩展解析 host 输出拿真实端口再连
     await cfg.update('sim', SIM, G);
     await cfg.update('app', APP, G);
 
