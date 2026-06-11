@@ -1,8 +1,9 @@
 // InspectorPanel —— DevEco 式 ArkUI 检查器：组件树（可展开/搜索）+ 选中节点的属性/事件面板。
 // 数据源（rich action 命令，回包 {command, result:<JSON 字符串>}）：
-//   - inspector：实时组件树（节点含 $type/$ID/$rect/$attrs/$children），$rect 用于定位。
-//     ⚠ standalone 预编译 Previewer 仅返回 root（StageManager 无 LastPage，见调研）；
-//        完整树需重编译 Previewer 或走真机 device 路径（ConnectServer ArkUI domain）。
+//   - inspector：组件树（节点含 $type/$ID/$rect/$attrs/$children），$rect 用于定位。
+//     这是 previewer 唯一的树数据源——拿到什么展示什么。预编译 Previewer 的 GetInspector
+//     常仅回 root（StageManager 无 LastPage，见调研）；完整树是真机路径的事
+//     （ConnectServer 的 CDP ArkUI domain → GetInspector(true)），不在 previewer 范畴。
 //   - inspectorDefault：默认组件目录（version/deviceType/defaultValue{...}），无实例/位置，仅供浏览。
 // fetch() 先取 inspector，为空回退 inspectorDefault。
 // 节点带 $attrs/$rect 时，右侧属性面板按 Spacing/Size/Border/Background/Effect/All Attributes 分区展示。
@@ -155,7 +156,7 @@ export class InspectorPanel {
     const raw = ev.result;
     if (ev.command === "inspector" && (!raw || raw === "") && !this._triedDefault) {
       this._triedDefault = true;
-      this.note.textContent = "实时组件树为空（需 arkts-dap 调试器 attach）。回退默认组件目录…";
+      this.note.textContent = "组件树为空（应用未渲染或页面未挂载）。回退默认组件目录…";
       this.transport.send({ type: "command", command: "inspectorDefault", cmdType: "action", args: {} });
       return true;
     }
@@ -166,8 +167,8 @@ export class InspectorPanel {
     const rootOnly = ev.command === "inspector" && this._roots.length === 1 && this._roots[0].children.length === 0;
     this.note.textContent = ev.command === "inspector"
       ? (rootOnly
-        ? "⚠ 仅返回 root 节点（预编译 Previewer 的 GetInspector 限制；完整树需重编译或走真机）"
-        : "实时组件树（点节点 → 画面高亮定位 + 右侧属性）")
+        ? "⚠ Previewer 仅返回 root 节点（GetInspector 限制）；完整组件树走真机调试"
+        : "组件树（点节点 → 画面高亮定位 + 右侧属性）")
       : "默认组件目录（inspectorDefault；无位置/属性）";
     this._render(this._roots);
     return true;
