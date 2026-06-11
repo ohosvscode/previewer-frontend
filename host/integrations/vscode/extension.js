@@ -57,7 +57,6 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("ohPreviewer.open", () => openPreview(context)),
     vscode.commands.registerCommand("ohPreviewer.arkuiInspector", () => openArkuiInspector(context)),
-    vscode.commands.registerCommand("ohPreviewer.hilog", () => openHilog(context)),
     renderedEmitter
   );
   // 暴露给集成测试：观测 webview 是否真的渲染了帧（画面环 E2E）。
@@ -444,104 +443,6 @@ function renderInspectorHtml(webview, uiRoot) {
   <script type="module" src="${entryUri}"></script>
 </body>
 </html>`;
-}
-
-// ───────────────── hdc 定位（真机功能共用） ─────────────────
-function findHdc() {
-  const cfg = vscode.workspace.getConfiguration("ohPreviewer");
-  const explicit = cfg.get("hdc") || process.env.HDC_PATH;
-  const tryPaths = [];
-  if (explicit) tryPaths.push(explicit);
-  const home = process.env.HOME || "";
-  const sdkRoot = path.join(home, "Library", "OpenHarmony", "Sdk");
-  try {
-    for (const ver of fs.readdirSync(sdkRoot)) tryPaths.push(path.join(sdkRoot, ver, "toolchains", "hdc"));
-  } catch { /* 无 SDK 目录 */ }
-  tryPaths.push("/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc");
-  for (const p of tryPaths) { try { if (fs.existsSync(p)) return p; } catch { /* skip */ } }
-  return "hdc"; // 回退 PATH
-}
-
-// ───────────────── HiLog 日志面板（真机） ─────────────────
-// 流式 hdc shell hilog → webview 控制台；过滤/级别着色在前端做（实时，不重启进程）。
-function openHilog(context) {
-  const uiRoot = resolveUiRoot(context);
-  const hdc = findHdc();
-  const panel = vscode.window.createWebviewPanel(
-    "ohHilog", "HiLog 日志（真机）", vscode.ViewColumn.Active,
-    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [uiRoot] }
-  );
-  panel.webview.html = renderHilogHtml(panel.webview, uiRoot);
-
-  let child = null;
-  let disposed = false;
-  const start = () => {
-    stop();
-    // hilog -x：当前缓冲全量退出（先灌历史）后再持续流。这里直接持续流。
-    child = cp.spawn(hdc, ["shell", "hilog"], { stdio: ["ignore", "pipe", "pipe"] });
-    let buf = "";
-    const onData = (d) => {
-      buf += d.toString();
-      const lines = buf.split("\n");
-      buf = lines.pop(); // 末行可能不完整，留到下次
-      if (lines.length) panel.webview.postMessage({ channel: "log", lines });
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("error", (e) => panel.webview.postMessage({ channel: "logErr", message: "hdc hilog 启动失败：" + e.message + "（hdc=" + hdc + "）" }));
-    child.on("exit", (code) => { if (!disposed) panel.webview.postMessage({ channel: "logEnd", code }); });
-  };
-  const stop = () => { if (child) { try { child.kill(); } catch { /* none */ } child = null; } };
-
-  panel.webview.onDidReceiveMessage((m) => {
-    if (!m) return;
-    if (m.channel === "ready" || m.channel === "restart") start();
-    else if (m.channel === "stop") stop();
-  });
-  panel.onDidDispose(() => { disposed = true; stop(); });
-}
-
-function renderHilogHtml(webview, uiRoot) {
-  const uri = (...p) => webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, ...p));
-  const entryUri = uri("src", "hilog.js");
-  const styleUri = uri("src", "style.css");
-  const csp = [
-    `default-src 'none'`,
-    `script-src ${webview.cspSource}`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `font-src ${webview.cspSource}`,
-  ].join("; ");
-  return `<!DOCTYPE html>
-<html lang="zh-CN"><head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="${csp}" />
-  <link rel="stylesheet" href="${styleUri}" />
-  <title>HiLog 日志</title>
-  <style>
-    body { margin: 0; }
-    .lg-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel-bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
-    .lg-bar input, .lg-bar select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 4px 7px; font-size: 12px; }
-    .lg-bar input.flt { flex: 1; min-width: 160px; }
-    .lg-btn { background: var(--btn-bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
-    .lg-btn.active { background: var(--accent); color: var(--vscode-button-foreground, #fff); border-color: var(--accent); }
-    .lg-list { font: 11px/1.5 "SF Mono", Menlo, monospace; padding: 4px 0; white-space: pre-wrap; word-break: break-word; }
-    .lg-row { padding: 0 12px; }
-    .lg-row:hover { background: var(--hover-bg); }
-    .lv-D { color: var(--muted); } .lv-I { color: var(--text); } .lv-W { color: #e0b34a; }
-    .lv-E { color: var(--bad); } .lv-F { color: #ff6b6b; font-weight: 600; }
-    .lg-meta { color: var(--muted); }
-  </style>
-</head><body>
-  <div class="lg-bar">
-    <button id="pause" class="lg-btn" title="暂停/继续滚动">⏸ 暂停</button>
-    <button id="clear" class="lg-btn">清空</button>
-    <input id="flt" class="flt" type="search" placeholder="过滤（文本 / tag，空格分词全含；! 前缀排除）" />
-    <select id="level"><option value="">全部级别</option><option value="D">Debug+</option><option value="I">Info+</option><option value="W">Warn+</option><option value="E">Error+</option></select>
-    <span id="count" class="lg-meta"></span>
-  </div>
-  <div id="list" class="lg-list"></div>
-  <script type="module" src="${entryUri}"></script>
-</body></html>`;
 }
 
 function deactivate() {}

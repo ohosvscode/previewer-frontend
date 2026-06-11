@@ -27,10 +27,6 @@
       {
         "command": "ohPreviewer.arkuiInspector",
         "title": "OpenHarmony: ArkUI 组件树检查器（真机）"
-      },
-      {
-        "command": "ohPreviewer.hilog",
-        "title": "OpenHarmony: HiLog 日志（真机）"
       }
     ],
     "configuration": {
