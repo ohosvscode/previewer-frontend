@@ -57,9 +57,20 @@ body {
 
 /* DeviceFrame —— liteWearable 圆屏外观 */
 .device {
+  position: relative; /* 高亮覆盖框 .inspect-hl 以此为定位父 */
   background: var(--bezel);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 0 8px #2a2b2e;
   overflow: hidden;
+}
+/* Inspector 点击节点 → 画面上高亮元素 */
+.inspect-hl {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  border: 2px solid var(--accent, #4ea1ff);
+  background: rgba(78, 161, 255, 0.18);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  z-index: 5;
 }
 .device--circle { border-radius: 50%; }
 .device--rect { border-radius: 28px; }
@@ -107,11 +118,23 @@ select.ctl-input { background: #1c1d20; color: var(--text); border: 1px solid #3
   background: #16171a;
   border: 1px solid #2c2e33;
   border-radius: 6px;
-  padding: 8px;
-  font: 11px/1.4 "SF Mono", Menlo, monospace;
-  color: #a9c7a0;
-  max-height: 320px;
+  padding: 6px;
+  font: 11px/1.5 "SF Mono", Menlo, monospace;
+  color: #c8cdd6;
+  max-height: 360px;
   overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+.tree-row:hover { background: #22242a; }
+.tree-row.selected { background: rgba(78, 161, 255, 0.22); }
+.tree-toggle { width: 12px; color: var(--muted); user-select: none; text-align: center; }
+.tree-label { color: #a9c7a0; }
+.tree-label.has-rect { color: #7fb6ff; } /* 有 $rect、可点击定位的实例节点 */

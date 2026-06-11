@@ -5,23 +5,54 @@
   "version": "0.0.1",
   "publisher": "openharmony-previewer-frontend",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/sanchuanhehe/previewer-frontend.git", "directory": "host/integrations/vscode" },
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sanchuanhehe/previewer-frontend.git",
+    "directory": "host/integrations/vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
   "main": "./extension.js",
   "activationEvents": [],
   "contributes": {
     "commands": [
-      { "command": "ohPreviewer.open", "title": "OpenHarmony: 打开预览" }
+      {
+        "command": "ohPreviewer.open",
+        "title": "OpenHarmony: 打开预览"
+      }
     ],
     "configuration": {
       "title": "OpenHarmony Previewer",
       "properties": {
-        "ohPreviewer.hostBin": { "type": "string", "default": "", "description": "previewer-host 可执行文件路径（留空则按平台在 ../../target 下查找）" },
-        "ohPreviewer.sdk": { "type": "string", "default": "", "description": "OpenHarmony SDK 或其 previewer 目录（留空则自动发现 ~/Library/OpenHarmony/Sdk 与 DevEco）。用于自动选择 liteWearable Simulator（FA）/ common Previewer（Stage）。" },
-        "ohPreviewer.sim": { "type": "string", "default": "", "description": "Simulator/Previewer 路径（手动覆盖；与 app 同时设置才生效，否则走自动发现）" },
-        "ohPreviewer.app": { "type": "string", "default": "", "description": "已编译应用目录（手动覆盖；留空则按工程构建产物自动探测 FA/Stage）" },
-        "ohPreviewer.bind": { "type": "string", "default": "", "description": "host gateway 监听地址。留空则用 127.0.0.1:0 由 OS 动态分配端口（推荐，避免端口冲突/多开）；可填 127.0.0.1:9000 固定。" }
+        "ohPreviewer.hostBin": {
+          "type": "string",
+          "default": "",
+          "description": "previewer-host 可执行文件路径（留空则按平台在 ../../target 下查找）"
+        },
+        "ohPreviewer.sdk": {
+          "type": "string",
+          "default": "",
+          "description": "OpenHarmony SDK 或其 previewer 目录（留空则自动发现 ~/Library/OpenHarmony/Sdk 与 DevEco）。用于自动选择 liteWearable Simulator（FA）/ common Previewer（Stage）。"
+        },
+        "ohPreviewer.sim": {
+          "type": "string",
+          "default": "",
+          "description": "Simulator/Previewer 路径（手动覆盖；与 app 同时设置才生效，否则走自动发现）"
+        },
+        "ohPreviewer.app": {
+          "type": "string",
+          "default": "",
+          "description": "已编译应用目录（手动覆盖；留空则按工程构建产物自动探测 FA/Stage）"
+        },
+        "ohPreviewer.bind": {
+          "type": "string",
+          "default": "",
+          "description": "host gateway 监听地址。留空则用 127.0.0.1:0 由 OS 动态分配端口（推荐，避免端口冲突/多开）；可填 127.0.0.1:9000 固定。"
+        }
       }
     }
   },
@@ -30,7 +61,7 @@
     "bundle-host": "node -e \"const fs=require('fs'),path=require('path');const exe=process.env.OHPREV_HOST_EXE||(process.platform==='win32'?'previewer-host.exe':'previewer-host');const src=process.env.OHPREV_HOST_BIN||['release','debug'].map(p=>path.join('..','..','target',p,exe)).find(fs.existsSync);if(!src||!fs.existsSync(src)){console.error('host 未构建：先 cargo build --release 或设 OHPREV_HOST_BIN');process.exit(1)}fs.rmSync('bin',{recursive:true,force:true});fs.mkdirSync('bin',{recursive:true});fs.copyFileSync(src,path.join('bin',exe));try{fs.chmodSync(path.join('bin',exe),0o755)}catch(e){}console.log('bundled host:',src,'->','bin/'+exe)\"",
     "vscode:prepublish": "npm run bundle-ui && npm run bundle-host",
     "test": "vscode-test",
-    "test:unit": "mocha test/unit/**/*.test.js"
+    "test:unit": "mocha 'test/unit/**/*.test.{js,mjs}'"
   },
   "dependencies": {
     "ws": "^8.18.0"

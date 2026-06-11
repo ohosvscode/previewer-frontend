@@ -45,7 +45,12 @@ function buildUI(hello) {
   }
 
   panelEl.innerHTML = "";
-  if (!hello.isLite) inspector = new InspectorPanel(panelEl, transport);
+  if (!hello.isLite) {
+    // 点击组件树节点 → 在画布上高亮该元素（节点带 $rect 时；实时树需 arkts-dap attach）
+    inspector = new InspectorPanel(panelEl, transport, {
+      onSelect: (rect) => screen.highlight(rect),
+    });
+  }
   if (hello.isLite) new ControlPanel(panelEl, transport);
 
   new Toolbar(toolbarEl, transport, {
