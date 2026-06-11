@@ -281,6 +281,7 @@ async function openArkuiInspector(context) {
       panel.webview.postMessage({
         channel: "deviceTree",
         tree: content,
+        snapshot: res.snapshot || null, // {base64,width,height,...}：设备截图，供叠加高亮
         meta: { windowId: norm.windowId, vsyncId: norm.vsyncId, processId: norm.processId },
       });
     } catch (e) {
@@ -315,7 +316,14 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-status { color: var(--muted); font-size: 12px; }
     .ai-status.ok { color: #4ec98a; }
     .ai-status.error { color: #e26d6d; }
-    #panel { padding: 8px 14px 24px; }
+    /* DevEco 式三栏：设备截图（左） | 组件树 + 属性（右）。点节点 → 截图上高亮。 */
+    .ai-body { display: flex; align-items: flex-start; gap: 0; }
+    .ai-screen { flex: 0 0 auto; padding: 12px 14px; position: sticky; top: 49px; }
+    .ai-screen-wrap { position: relative; display: inline-block; background: #000; border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+    #shot { display: block; max-height: 70vh; width: auto; }
+    #shot-hint { color: var(--muted); font-size: 11px; padding: 30px 10px; text-align: center; }
+    #hl { position: absolute; display: none; pointer-events: none; border: 2px solid var(--accent, #4ea1ff); background: rgba(78,161,255,.18); box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 3; }
+    #panel { flex: 1 1 auto; min-width: 0; padding: 8px 14px 24px; }
     /* 独立视图：树/属性面板放开高度限制 */
     .inspector-tree { max-height: none; }
     .insp-tab-body { max-height: none; }
@@ -326,7 +334,16 @@ function renderInspectorHtml(webview, uiRoot) {
     <button id="refresh" class="ai-btn">⟳ 刷新</button>
     <span id="status" class="ai-status"></span>
   </div>
-  <div id="panel"></div>
+  <div class="ai-body">
+    <div class="ai-screen">
+      <div class="ai-screen-wrap">
+        <img id="shot" alt="设备截图" style="display:none" />
+        <div id="shot-hint">（抓取后显示设备截图<br/>点组件树节点 → 此处高亮定位）</div>
+        <div id="hl"></div>
+      </div>
+    </div>
+    <div id="panel"></div>
+  </div>
   <script type="module" src="${entryUri}"></script>
 </body>
 </html>`;
