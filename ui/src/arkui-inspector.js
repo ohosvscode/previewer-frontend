@@ -134,39 +134,49 @@ function build3D() {
   stage3d.innerHTML = "";
   if (!deviceTree || !snapW) return;
   const s = 220 / snapW; // 显示缩放（设备宽 → ~220px）
-  const gap = 16; // 每层深度的 Z 间距
+  const gap = 22; // 每层深度的 Z 间距
+  const hasPerComp = perComp && perComp.size > 0;
   stage3d.style.width = snapW * s + "px";
   stage3d.style.height = snapH * s + "px";
   const frag = document.createDocumentFragment();
+  const seenRect = new Set(); // 去重：rect 几乎相同的嵌套层（全屏容器链）只画一层，消重影/重复
   const walk = (node, depth) => {
     const r = parseRect(node.$rect);
     if (r && r.w > 0 && r.h > 0) {
-      const el = document.createElement("div");
-      el.className = "layer3d" + (depth === 0 ? " layer3d-top" : "");
-      el.style.left = r.x * s + "px";
-      el.style.top = r.y * s + "px";
-      el.style.width = r.w * s + "px";
-      el.style.height = r.h * s + "px";
-      el.style.transform = `translateZ(${depth * gap}px)`;
-      if (node.$ID != null) el.dataset.id = node.$ID;
-      // 贴图优先级：① 逐组件渲染图(ArkUI.tree.3D，含遮挡/滚动外内容) ② 回退截图切片。
       const cid = node.$ID != null ? String(node.$ID) : null;
-      if (cid && perComp && perComp.has(cid)) {
-        el.style.backgroundImage = `url(${perComp.get(cid)})`;
-        el.style.backgroundSize = "100% 100%";
-        el.style.backgroundRepeat = "no-repeat";
-      } else if (snapUrl) {
-        // 截图整图定位到本层 rect 这一块（共享 blob URL）
-        el.style.backgroundImage = `url(${snapUrl})`;
-        el.style.backgroundSize = `${snapW * s}px ${snapH * s}px`;
-        el.style.backgroundPosition = `${-r.x * s}px ${-r.y * s}px`;
-        el.style.backgroundRepeat = "no-repeat";
+      const hasImg = cid && perComp && perComp.has(cid);
+      // 逐组件模式：只画有自身渲染图的层（跳过几百个空容器线框，去杂乱）。
+      const skipNoImg = hasPerComp && !hasImg;
+      // rect 去重（取整到 1px）：同一位置同尺寸只保留首个（最外层）。
+      const key = `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.w)},${Math.round(r.h)}`;
+      const dup = seenRect.has(key);
+      if (!skipNoImg && !dup) {
+        seenRect.add(key);
+        const el = document.createElement("div");
+        el.className = "layer3d" + (depth === 0 ? " layer3d-top" : "") + (hasImg ? " solo" : "");
+        el.style.left = r.x * s + "px";
+        el.style.top = r.y * s + "px";
+        el.style.width = r.w * s + "px";
+        el.style.height = r.h * s + "px";
+        el.style.transform = `translateZ(${depth * gap}px)`;
+        if (cid) el.dataset.id = node.$ID;
+        // 贴图优先级：① 逐组件渲染图(ArkUI.tree.3D，含遮挡/滚动外内容) ② 回退截图切片。
+        if (hasImg) {
+          el.style.backgroundImage = `url(${perComp.get(cid)})`;
+          el.style.backgroundSize = "100% 100%";
+          el.style.backgroundRepeat = "no-repeat";
+        } else if (snapUrl) {
+          el.style.backgroundImage = `url(${snapUrl})`;
+          el.style.backgroundSize = `${snapW * s}px ${snapH * s}px`;
+          el.style.backgroundPosition = `${-r.x * s}px ${-r.y * s}px`;
+          el.style.backgroundRepeat = "no-repeat";
+        }
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (node.$ID != null) inspector.selectById(node.$ID);
+        });
+        frag.appendChild(el);
       }
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (node.$ID != null) inspector.selectById(node.$ID);
-      });
-      frag.appendChild(el);
     }
     if (Array.isArray(node.$children)) for (const c of node.$children) walk(c, depth + 1);
   };

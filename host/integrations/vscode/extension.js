@@ -410,10 +410,11 @@ function renderInspectorHtml(webview, uiRoot) {
     .ai-3d { perspective: 2000px; width: 560px; height: 72vh; overflow: hidden; cursor: grab; user-select: none; }
     .ai-3d.grabbing { cursor: grabbing; }
     .ai-3d-stage { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
-    .layer3d { position: absolute; box-sizing: border-box; border: 1px solid rgba(120,170,255,.45); background: rgba(120,170,255,.06); opacity: .72; transition: border-color .1s; }
+    .layer3d { position: absolute; box-sizing: border-box; border: 1px solid rgba(120,170,255,.4); background: rgba(120,170,255,.06); opacity: .72; transition: border-color .1s; }
+    .layer3d.solo { opacity: 1; border-color: rgba(120,170,255,.25); background: #0a0e16; } /* 逐组件图：不透明，消混叠重影 */
     .layer3d:hover { border-color: var(--accent); opacity: 1; }
-    .layer3d.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); opacity: 1; z-index: 1; }
-    .layer3d-top { opacity: 1; border-color: rgba(120,170,255,.7); }
+    .layer3d.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); opacity: 1; }
+    .layer3d-top { border-color: rgba(120,170,255,.7); }
     /* 独立视图：树/属性面板放开高度限制 */
     .inspector-tree { max-height: none; }
     .insp-tab-body { max-height: none; }
